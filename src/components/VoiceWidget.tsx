@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useVoice, VoiceProvider } from '@humeai/voice-react'
+import { useState, useEffect, useCallback, Component, ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
 const HUME_CONFIG_ID = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || ''
@@ -11,84 +11,67 @@ interface VoiceWidgetProps {
   onConnectionChange?: (isConnected: boolean) => void
 }
 
-interface VoiceControlsProps {
-  accessToken: string
-  userId: string | null
-  onConnectionChange?: (isConnected: boolean) => void
-}
+// Error boundary to catch Hume SDK errors
+class VoiceErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
 
-function VoiceControls({ accessToken, userId, onConnectionChange }: VoiceControlsProps) {
-  const { connect, disconnect, status } = useVoice()
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
 
-  const isConnected = status.value === 'connected'
-  const isConnecting = status.value === 'connecting'
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('VoiceWidget error:', error, errorInfo)
+  }
 
-  useEffect(() => {
-    onConnectionChange?.(isConnected)
-  }, [isConnected, onConnectionChange])
-
-  const toggleConnection = useCallback(async () => {
-    if (isConnected) {
-      await disconnect()
-    } else {
-      try {
-        await connect({
-          auth: { type: 'accessToken', value: accessToken },
-          configId: HUME_CONFIG_ID,
-          sessionSettings: {
-            customSessionId: userId || undefined,
-          },
-        } as Parameters<typeof connect>[0])
-      } catch (err) {
-        console.error('Failed to connect:', err)
-      }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-5 bg-red-500/20 rounded-xl text-red-300 text-center">
+          <p className="font-medium mb-2">Voice interface error</p>
+          <p className="text-sm text-red-400">{this.state.error?.message || 'Unknown error'}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-sm transition"
+          >
+            Try Again
+          </button>
+        </div>
+      )
     }
-  }, [isConnected, connect, disconnect, accessToken, userId])
-
-  return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Status indicator */}
-      <div className={`w-32 h-32 rounded-full flex items-center justify-center transition-all ${
-        isConnected
-          ? 'bg-gradient-to-r from-green-500 to-emerald-500 animate-pulse'
-          : 'bg-gradient-to-r from-purple-500 to-pink-500'
-      }`}>
-        <span className="text-4xl">
-          {isConnected ? '🎙️' : '🔇'}
-        </span>
-      </div>
-
-      {/* Controls */}
-      <div className="flex gap-4">
-        <button
-          onClick={toggleConnection}
-          disabled={isConnecting}
-          className={`px-6 py-3 rounded-lg transition ${
-            isConnected
-              ? 'bg-red-500/80 hover:bg-red-500'
-              : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90'
-          } ${isConnecting ? 'opacity-50 cursor-wait' : ''}`}
-        >
-          {isConnecting ? 'Connecting...' : isConnected ? 'End Call' : 'Start Conversation'}
-        </button>
-      </div>
-
-      {/* Status text */}
-      <p className="text-gray-400 text-sm">
-        {status.value === 'connecting' && 'Connecting...'}
-        {status.value === 'connected' && 'Listening...'}
-        {status.value === 'disconnected' && 'Click to start'}
-      </p>
-    </div>
-  )
+    return this.props.children
+  }
 }
+
+// Lazy load the Hume components to avoid SSR issues
+const HumeVoiceUI = dynamic(() => import('./HumeVoiceUI'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-5 text-center text-gray-500">
+      Loading voice interface...
+    </div>
+  ),
+})
 
 export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isClient, setIsClient] = useState(false)
+
+  // Ensure client-side only
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Fetch access token on mount
   useEffect(() => {
+    if (!isClient) return
+
     const fetchToken = async () => {
       try {
         const response = await fetch(`${GATEWAY_URL}/voice/access-token`, {
@@ -111,21 +94,41 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
 
     if (GATEWAY_URL) {
       fetchToken()
+    } else {
+      setError('Gateway URL not configured')
     }
-  }, [])
+  }, [isClient, userId])
+
+  if (!isClient) {
+    return (
+      <div className="p-5 text-center text-gray-500">
+        Loading...
+      </div>
+    )
+  }
 
   if (!HUME_CONFIG_ID) {
     return (
-      <div className="text-red-400 p-4 border border-red-400/20 rounded-lg">
-        Missing NEXT_PUBLIC_HUME_CONFIG_ID environment variable
+      <div className="text-yellow-400 p-4 border border-yellow-400/20 rounded-lg text-center">
+        <p className="font-medium">Voice not configured</p>
+        <p className="text-sm text-yellow-500 mt-1">Missing HUME_CONFIG_ID</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="p-5 bg-red-500/20 rounded-xl text-red-300">
-        {error}
+      <div className="p-5 bg-red-500/20 rounded-xl text-red-300 text-center">
+        <p>{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            setAccessToken(null)
+          }}
+          className="mt-3 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-sm transition"
+        >
+          Retry
+        </button>
       </div>
     )
   }
@@ -133,18 +136,26 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
   if (!accessToken) {
     return (
       <div className="p-5 text-center text-gray-500">
+        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
         Initializing voice interface...
       </div>
     )
   }
 
   return (
-    <VoiceProvider>
-      <VoiceControls
+    <VoiceErrorBoundary
+      fallback={
+        <div className="p-5 bg-red-500/20 rounded-xl text-red-300">
+          Voice interface failed to load
+        </div>
+      }
+    >
+      <HumeVoiceUI
         accessToken={accessToken}
+        configId={HUME_CONFIG_ID}
         userId={userId}
         onConnectionChange={onConnectionChange}
       />
-    </VoiceProvider>
+    </VoiceErrorBoundary>
   )
 }
