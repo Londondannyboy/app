@@ -92,7 +92,9 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
     const fetchToken = async () => {
       try {
         const response = await fetch(`${GATEWAY_URL}/voice/access-token`, {
-          method: 'GET',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId }),
         })
 
         if (!response.ok) {
