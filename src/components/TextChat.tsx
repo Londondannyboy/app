@@ -14,17 +14,23 @@ interface TextChatProps {
   appId?: string
   onThinking?: (status: string | null) => void
   onToolCall?: (tool: string) => void
-  onToolResult?: (tool: string) => void
-  onFactExtracted?: (fact: any) => void
+  onToolResult?: (tool: string, result?: string) => void
+  onFactExtracted?: (fact: unknown) => void
+  onZepQuery?: (query: string) => void
+  onNeonQuery?: (query: string) => void
+  onContentSuggestion?: (content: unknown) => void
 }
 
 export function TextChat({
   userId,
-  appId = 'dashboard',
+  appId = 'relocation',
   onThinking,
   onToolCall,
   onToolResult,
-  onFactExtracted
+  onFactExtracted,
+  onZepQuery,
+  onNeonQuery,
+  onContentSuggestion,
 }: TextChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -51,6 +57,7 @@ export function TextChat({
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsStreaming(true)
+    onThinking?.('Processing your message...')
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_GATEWAY_URL}/chat/completions`, {
@@ -95,26 +102,58 @@ export function TextChat({
             try {
               const parsed = JSON.parse(data)
 
-              // Handle different event types from Vercel AI Protocol
-              if (parsed.type === 'text_delta') {
-                assistantMessage.content += parsed.text
-                setMessages(prev =>
-                  prev.map(m => m.id === assistantMessage.id ? {...m, content: assistantMessage.content} : m)
-                )
-              } else if (parsed.type === 'thinking') {
-                onThinking?.(parsed.content)
-              } else if (parsed.type === 'tool_call') {
-                onToolCall?.(parsed.name)
-              } else if (parsed.type === 'tool_result') {
-                onToolResult?.(parsed.name)
-              } else if (parsed.type === 'fact_extracted') {
-                onFactExtracted?.(parsed.fact)
-              } else if (parsed.choices?.[0]?.delta?.content) {
-                // OpenAI format fallback
-                assistantMessage.content += parsed.choices[0].delta.content
-                setMessages(prev =>
-                  prev.map(m => m.id === assistantMessage.id ? {...m, content: assistantMessage.content} : m)
-                )
+              // Handle different SSE event types
+              switch (parsed.type) {
+                case 'text_delta':
+                  assistantMessage.content += parsed.text
+                  setMessages(prev =>
+                    prev.map(m => m.id === assistantMessage.id ? {...m, content: assistantMessage.content} : m)
+                  )
+                  break
+
+                case 'thinking':
+                  onThinking?.(parsed.content)
+                  break
+
+                case 'tool_call':
+                case 'tool_start':
+                  onToolCall?.(parsed.name)
+                  onThinking?.(`Using ${parsed.name.replace(/_/g, ' ')}...`)
+                  break
+
+                case 'tool_result':
+                case 'tool_end':
+                  onToolResult?.(parsed.name, parsed.result)
+                  break
+
+                case 'fact_extracted':
+                  onFactExtracted?.(parsed.fact)
+                  break
+
+                case 'zep_query':
+                  onZepQuery?.(parsed.query)
+                  break
+
+                case 'neon_query':
+                  onNeonQuery?.(parsed.query)
+                  break
+
+                case 'content_suggestion':
+                  onContentSuggestion?.(parsed.content)
+                  break
+
+                case 'profile_change_pending':
+                  onThinking?.(`Considering update: ${parsed.fact_type}`)
+                  break
+
+                default:
+                  // OpenAI format fallback
+                  if (parsed.choices?.[0]?.delta?.content) {
+                    assistantMessage.content += parsed.choices[0].delta.content
+                    setMessages(prev =>
+                      prev.map(m => m.id === assistantMessage.id ? {...m, content: assistantMessage.content} : m)
+                    )
+                  }
               }
             } catch {
               // Skip invalid JSON
@@ -124,6 +163,16 @@ export function TextChat({
       }
     } catch (error) {
       console.error('Chat error:', error)
+      // Show error in chat
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.',
+          timestamp: new Date(),
+        },
+      ])
     } finally {
       setIsStreaming(false)
       onThinking?.(null)
@@ -131,12 +180,28 @@ export function TextChat({
   }
 
   return (
-    <div className="flex flex-col h-full bg-black/20 rounded-xl overflow-hidden">
+    <div className="flex flex-col h-full bg-black/20 rounded-xl overflow-hidden border border-white/10">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 py-8">
-            Start a conversation about your relocation plans
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">🌍</div>
+            <h3 className="text-lg font-medium mb-2">Welcome to Quest</h3>
+            <p className="text-gray-400 text-sm max-w-md mx-auto">
+              Tell me about your relocation plans. I'll help you find the right country,
+              visa options, jobs, and more.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center mt-6">
+              {['I want to move to Cyprus', 'Looking for remote jobs in Europe', 'Tell me about digital nomad visas'].map(suggestion => (
+                <button
+                  key={suggestion}
+                  onClick={() => setInput(suggestion)}
+                  className="px-3 py-1.5 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -148,17 +213,24 @@ export function TextChat({
             <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${
               m.role === 'user'
                 ? 'bg-gradient-to-r from-purple-500 to-pink-500'
-                : 'bg-white/10'
+                : 'bg-white/10 border border-white/10'
             }`}>
-              {m.content}
+              <div className="whitespace-pre-wrap">{m.content}</div>
+              <div className="text-xs text-white/50 mt-1">
+                {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
           </div>
         ))}
 
         {isStreaming && messages[messages.length - 1]?.content === '' && (
           <div className="flex justify-start">
-            <div className="bg-white/10 px-4 py-3 rounded-2xl">
-              <span className="animate-pulse">Thinking...</span>
+            <div className="bg-white/10 border border-white/10 px-4 py-3 rounded-2xl">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+              </div>
             </div>
           </div>
         )}
@@ -174,14 +246,20 @@ export function TextChat({
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your relocation..."
           disabled={isStreaming}
-          className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-purple-500 outline-none transition"
+          className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition placeholder:text-gray-500"
         />
         <button
           type="submit"
           disabled={isStreaming || !input.trim()}
-          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition"
         >
-          {isStreaming ? '...' : 'Send'}
+          {isStreaming ? (
+            <span className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            </span>
+          ) : (
+            'Send'
+          )}
         </button>
       </form>
     </div>
