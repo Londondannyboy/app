@@ -1,15 +1,49 @@
 'use client'
 
+import { useState, useEffect, useCallback } from 'react'
 import { useVoice, VoiceProvider } from '@humeai/voice-react'
+
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
+const HUME_CONFIG_ID = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || ''
 
 interface VoiceWidgetProps {
   userId: string | null
+  onConnectionChange?: (isConnected: boolean) => void
 }
 
-function VoiceControls() {
-  const { connect, disconnect, status, isMuted, mute, unmute } = useVoice()
+interface VoiceControlsProps {
+  accessToken: string
+  userId: string | null
+  onConnectionChange?: (isConnected: boolean) => void
+}
+
+function VoiceControls({ accessToken, userId, onConnectionChange }: VoiceControlsProps) {
+  const { connect, disconnect, status } = useVoice()
 
   const isConnected = status.value === 'connected'
+  const isConnecting = status.value === 'connecting'
+
+  useEffect(() => {
+    onConnectionChange?.(isConnected)
+  }, [isConnected, onConnectionChange])
+
+  const toggleConnection = useCallback(async () => {
+    if (isConnected) {
+      await disconnect()
+    } else {
+      try {
+        await connect({
+          auth: { type: 'accessToken', value: accessToken },
+          configId: HUME_CONFIG_ID,
+          sessionSettings: {
+            customSessionId: userId || undefined,
+          },
+        } as Parameters<typeof connect>[0])
+      } catch (err) {
+        console.error('Failed to connect:', err)
+      }
+    }
+  }, [isConnected, connect, disconnect, accessToken, userId])
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -26,29 +60,17 @@ function VoiceControls() {
 
       {/* Controls */}
       <div className="flex gap-4">
-        {!isConnected ? (
-          <button
-            onClick={() => connect()}
-            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition"
-          >
-            Start Conversation
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={() => isMuted ? unmute() : mute()}
-              className="px-4 py-2 border border-white/20 rounded-lg hover:bg-white/10 transition"
-            >
-              {isMuted ? '🔇 Unmute' : '🔊 Mute'}
-            </button>
-            <button
-              onClick={() => disconnect()}
-              className="px-4 py-2 bg-red-500/80 rounded-lg hover:bg-red-500 transition"
-            >
-              End Call
-            </button>
-          </>
-        )}
+        <button
+          onClick={toggleConnection}
+          disabled={isConnecting}
+          className={`px-6 py-3 rounded-lg transition ${
+            isConnected
+              ? 'bg-red-500/80 hover:bg-red-500'
+              : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90'
+          } ${isConnecting ? 'opacity-50 cursor-wait' : ''}`}
+        >
+          {isConnecting ? 'Connecting...' : isConnected ? 'End Call' : 'Start Conversation'}
+        </button>
       </div>
 
       {/* Status text */}
@@ -61,10 +83,36 @@ function VoiceControls() {
   )
 }
 
-export function VoiceWidget({ userId }: VoiceWidgetProps) {
-  const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID
+export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!configId) {
+  // Fetch access token on mount
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const response = await fetch(`${GATEWAY_URL}/voice/access-token`, {
+          method: 'GET',
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+        setAccessToken(data.accessToken)
+      } catch (err) {
+        console.error('Failed to fetch access token:', err)
+        setError('Failed to connect to voice service')
+      }
+    }
+
+    if (GATEWAY_URL) {
+      fetchToken()
+    }
+  }, [])
+
+  if (!HUME_CONFIG_ID) {
     return (
       <div className="text-red-400 p-4 border border-red-400/20 rounded-lg">
         Missing NEXT_PUBLIC_HUME_CONFIG_ID environment variable
@@ -72,23 +120,29 @@ export function VoiceWidget({ userId }: VoiceWidgetProps) {
     )
   }
 
+  if (error) {
+    return (
+      <div className="p-5 bg-red-500/20 rounded-xl text-red-300">
+        {error}
+      </div>
+    )
+  }
+
+  if (!accessToken) {
+    return (
+      <div className="p-5 text-center text-gray-500">
+        Initializing voice interface...
+      </div>
+    )
+  }
+
   return (
-    <VoiceProvider
-      configId={configId}
-      auth={{
-        type: 'accessToken',
-        value: async () => {
-          // Fetch access token from our gateway
-          const res = await fetch(`${process.env.NEXT_PUBLIC_GATEWAY_URL}/voice/access-token`)
-          const { accessToken } = await res.json()
-          return accessToken
-        }
-      }}
-      sessionSettings={{
-        customSessionId: userId || undefined,
-      }}
-    >
-      <VoiceControls />
+    <VoiceProvider>
+      <VoiceControls
+        accessToken={accessToken}
+        userId={userId}
+        onConnectionChange={onConnectionChange}
+      />
     </VoiceProvider>
   )
 }
