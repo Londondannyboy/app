@@ -23,7 +23,7 @@ export async function getOrCreateProfile(stackUserId: string): Promise<number> {
   const existing = await sql`
     SELECT id FROM user_profiles
     WHERE stack_user_id = ${stackUserId}
-  `
+  ` as Array<{ id: number }>
 
   if (existing.length > 0) {
     return existing[0].id
@@ -34,7 +34,7 @@ export async function getOrCreateProfile(stackUserId: string): Promise<number> {
     INSERT INTO user_profiles (stack_user_id, created_at, updated_at)
     VALUES (${stackUserId}, NOW(), NOW())
     RETURNING id
-  `
+  ` as Array<{ id: number }>
 
   return result[0].id
 }
@@ -54,9 +54,9 @@ export async function getUserFacts(stackUserId: string): Promise<UserFact[]> {
     WHERE p.stack_user_id = ${stackUserId}
     AND f.is_active = true
     ORDER BY f.updated_at DESC
-  `
+  ` as UserFact[]
 
-  return rows as UserFact[]
+  return rows
 }
 
 /**
@@ -82,7 +82,7 @@ export async function storeFact(
       NOW(), NOW()
     )
     RETURNING id
-  `
+  ` as Array<{ id: number }>
 
   return result[0].id
 }
@@ -103,7 +103,7 @@ export async function updateFact(
       source = ${source},
       updated_at = NOW()
     WHERE id = ${factId}
-  `
+  ` as any[]
 }
 
 /**
@@ -133,9 +133,9 @@ export async function searchArticles(
     )
     ORDER BY published_at DESC
     LIMIT ${limit}
-  `
+  ` as Article[]
 
-  return rows as Article[]
+  return rows
 }
 
 /**
@@ -158,7 +158,7 @@ export async function getArticlesByCountry(
     AND country ILIKE ${country}
     ORDER BY published_at DESC
     LIMIT ${limit}
-  `
+  ` as Article[]
 
-  return rows as Article[]
+  return rows
 }
