@@ -46,15 +46,15 @@ When users ask questions, provide helpful text responses AND generate appropriat
 
 User ID: ${userId || 'anonymous'}`
 
-    // Call TheSys C1 API
-    const response = await fetch('https://api.thesys.dev/v1/chat/completions', {
+    // Call TheSys C1 API (using correct endpoint and model)
+    const response = await fetch('https://api.thesys.dev/v1/embed/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.THESYS_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4',
+        model: 'c1/anthropic/claude-sonnet-4/v-20250815',
         messages: [
           { role: 'system', content: systemPrompt },
           ...messages
