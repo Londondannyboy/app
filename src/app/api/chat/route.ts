@@ -23,13 +23,13 @@ export async function POST(req: Request) {
       baseURL: 'https://api.thesys.dev/v1/embed',
     })
 
-    const result = streamText({
+    const result = await streamText({
       model: thesys('c1/anthropic/claude-sonnet-4/v-20250815') as any,
       system: systemMessage,
       messages,
     })
 
-    return result.toDataStreamResponse()
+    return result.toTextStreamResponse()
   } catch (error) {
     console.error('Chat API error:', error)
     return new Response(JSON.stringify({ error: 'Failed to process chat' }), {
