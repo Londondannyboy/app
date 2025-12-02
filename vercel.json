@@ -1,4 +1,6 @@
 {
-  "buildCommand": "turbo run build --filter=relocation",
-  "installCommand": "pnpm install"
+  "buildCommand": "cd apps/relocation && pnpm run build",
+  "outputDirectory": "apps/relocation/.next",
+  "installCommand": "pnpm install",
+  "framework": "nextjs"
 }
