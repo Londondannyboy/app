@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useUser, UserButton } from '@stackframe/stack'
+import MuxPlayer from '@mux/mux-player-react'
 
 interface Article {
   id: number
@@ -54,10 +55,8 @@ function ArticleCard({ article, index }: { article: Article; index: number }) {
     : null
 
   return (
-    <a
-      href={`https://relocation.quest/${article.slug}`}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      href={`/articles/${article.slug}`}
       className="group block transition-all duration-400 hover:-translate-y-2 hover:scale-[1.02]"
     >
       <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden h-full hover:border-white/20">
@@ -116,7 +115,7 @@ function ArticleCard({ article, index }: { article: Article; index: number }) {
           </div>
         </div>
       </div>
-    </a>
+    </Link>
   )
 }
 
@@ -211,12 +210,13 @@ export default function ArticlesPage() {
       <header className="relative min-h-[80vh] flex items-center pt-20">
         {featuredArticle?.video_playback_id && (
           <div className="absolute inset-0 overflow-hidden">
-            <Image
-              src={getThumbnail(featuredArticle, 0)}
-              alt=""
-              fill
-              className="object-cover opacity-40"
-              priority
+            <MuxPlayer
+              playbackId={featuredArticle.video_playback_id}
+              autoPlay="muted"
+              loop
+              muted
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 min-w-full min-h-full w-auto h-auto opacity-40"
+              style={{ '--controls': 'none' }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-transparent to-[#0a0a0a]/80" />
@@ -247,10 +247,8 @@ export default function ArticlesPage() {
             </p>
 
             {featuredArticle && (
-              <a
-                href={`https://relocation.quest/${featuredArticle.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href={`/articles/${featuredArticle.slug}`}
                 className="group inline-flex items-center gap-4 bg-white/5 backdrop-blur-sm border border-white/10 px-8 py-4 rounded-2xl hover:bg-white/10 transition-all"
                 style={{ boxShadow: '0 0 60px -15px rgba(245, 158, 11, 0.3)' }}
               >
@@ -267,7 +265,7 @@ export default function ArticlesPage() {
                   <p className="text-white font-bold line-clamp-1">{featuredArticle.title}</p>
                 </div>
                 <span className="text-2xl group-hover:translate-x-2 transition-transform">→</span>
-              </a>
+              </Link>
             )}
           </div>
         </div>
