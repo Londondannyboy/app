@@ -22,7 +22,6 @@ interface Article {
   published_at: string | null
   word_count: number | null
   is_featured: boolean | null
-  author: string | null
 }
 
 interface RelatedArticle {
@@ -234,7 +233,7 @@ export default function ArticlePage({ params }: { params: Promise<{ slug: string
                 RQ
               </div>
               <span className="font-medium text-white">
-                {article.author || 'Relocation Quest'}
+                Relocation Quest
               </span>
             </div>
             {publishDate && (
@@ -296,7 +295,7 @@ export default function ArticlePage({ params }: { params: Promise<{ slug: string
               />
             )}
             <div>
-              <p className="font-medium text-white">{article.author || 'Relocation Quest Editorial Team'}</p>
+              <p className="font-medium text-white">Relocation Quest Editorial Team</p>
               <p className="text-sm text-gray-500">
                 Published {publishDate} • {article.word_count?.toLocaleString()} words
               </p>

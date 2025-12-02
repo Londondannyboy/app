@@ -4,13 +4,26 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSSE } from '@/hooks/useSSE'
 
 interface Fact {
-  id: string
+  id: number | string  // Backend returns integer
   fact_type: string
   fact_value: string | Record<string, unknown>
   confidence: number
   source: string
   created_at: string
   isNew?: boolean
+}
+
+// Validated options for each fact type
+const FACT_OPTIONS: Record<string, string[]> = {
+  destination: ['Cyprus', 'Malta', 'Slovenia', 'Portugal', 'Spain', 'Greece', 'Italy', 'Croatia', 'Estonia', 'Czech Republic', 'Hungary', 'Poland', 'Germany', 'Netherlands', 'France', 'UK', 'Ireland', 'UAE', 'Singapore', 'Thailand', 'Mexico', 'Costa Rica', 'Other'],
+  origin: ['United Kingdom', 'United States', 'Canada', 'Australia', 'Germany', 'France', 'Netherlands', 'Ireland', 'New Zealand', 'South Africa', 'India', 'Other'],
+  budget: ['Under €1,000/month', '€1,000-2,000/month', '€2,000-3,000/month', '€3,000-5,000/month', '€5,000-10,000/month', 'Over €10,000/month'],
+  timeline: ['ASAP', '1-3 months', '3-6 months', '6-12 months', '1-2 years', 'No rush / exploring'],
+  family: ['Single', 'Couple', 'Family with children', 'Single parent', 'Retired'],
+  work_type: ['Fully Remote', 'Hybrid', 'On-site', 'Self-employed', 'Retired', 'Looking for work'],
+  visa_interest: ['Digital Nomad Visa', 'Golden Visa', 'Work Permit', 'Freelance Visa', 'Retirement Visa', 'Student Visa', 'Startup Visa', 'Not sure yet'],
+  nationality: ['British', 'American', 'Canadian', 'Australian', 'German', 'French', 'Dutch', 'Irish', 'New Zealander', 'South African', 'Indian', 'Other'],
+  profession: ['Software Developer', 'Designer', 'Marketing', 'Finance', 'Consultant', 'Entrepreneur', 'Freelancer', 'Remote Worker', 'Digital Nomad', 'Executive', 'Healthcare', 'Education', 'Other'],
 }
 
 interface PendingChange {
@@ -156,15 +169,26 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
 
   // Handle edit
   const handleEdit = (fact: Fact) => {
-    setEditingFact(fact.id)
+    setEditingFact(String(fact.id))
     setEditValue(renderFactValue(fact.fact_value))
   }
 
   const handleSave = async (fact: Fact) => {
     if (!userId) return
+    if (!editValue) {
+      alert('Please select a value')
+      return
+    }
     setSaving(true)
 
     try {
+      const payload = {
+        fact_id: String(fact.id),
+        fact_type: fact.fact_type,
+        value: editValue,
+      }
+      console.log('Saving fact:', payload)
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/update`,
         {
@@ -173,18 +197,18 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
             'Content-Type': 'application/json',
             'X-Stack-User-Id': userId,
           },
-          body: JSON.stringify({
-            fact_id: fact.id,
-            fact_type: fact.fact_type,
-            value: editValue,
-          }),
+          body: JSON.stringify(payload),
         }
       )
 
-      if (res.ok) {
+      const data = await res.json()
+      console.log('Save response:', data)
+
+      if (res.ok && data.success) {
+        const factIdStr = String(fact.id)
         setFacts(prev =>
           prev.map(f =>
-            f.id === fact.id
+            String(f.id) === factIdStr
               ? { ...f, fact_value: { value: editValue }, isNew: true }
               : f
           )
@@ -192,11 +216,14 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
         setTimeout(() => {
           setFacts(prev => prev.map(f => ({...f, isNew: false})))
         }, 2000)
+        console.log('Fact updated successfully')
       } else {
-        console.error('Failed to save:', await res.text())
+        console.error('Failed to save:', data)
+        alert(`Failed to save: ${data.detail || data.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Failed to update fact:', error)
+      alert('Network error - please try again')
     } finally {
       setSaving(false)
       setEditingFact(null)
@@ -368,7 +395,7 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
                   {fact.fact_type.replace(/_/g, ' ')}
                 </span>
               </div>
-              {editingFact !== fact.id && (
+              {editingFact !== String(fact.id) && (
                 <button
                   onClick={() => handleEdit(fact)}
                   className="opacity-0 group-hover:opacity-100 text-xs text-purple-400 hover:text-purple-300 transition"
@@ -378,23 +405,40 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
               )}
             </div>
 
-            {editingFact === fact.id ? (
+            {editingFact === String(fact.id) ? (
               <div className="space-y-2">
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSave(fact)
-                    if (e.key === 'Escape') handleCancel()
-                  }}
-                />
+                {FACT_OPTIONS[fact.fact_type] ? (
+                  <select
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') handleCancel()
+                    }}
+                  >
+                    <option value="">Select...</option>
+                    {FACT_OPTIONS[fact.fact_type].map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSave(fact)
+                      if (e.key === 'Escape') handleCancel()
+                    }}
+                  />
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleSave(fact)}
-                    disabled={saving}
+                    disabled={saving || !editValue}
                     className="flex-1 px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 disabled:opacity-50 transition"
                   >
                     {saving ? 'Saving...' : 'Save'}
