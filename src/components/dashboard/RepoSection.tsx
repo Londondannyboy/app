@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSSE } from '@/hooks/useSSE'
 
 interface RepoFact {
   id: string
@@ -47,6 +48,66 @@ export function RepoSection({ userId }: RepoSectionProps) {
     new_value: string
     timestamp: Date
   }>>([])
+  const [editingFact, setEditingFact] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleEdit = (fact: RepoFact) => {
+    setEditingFact(fact.id)
+    setEditValue(renderValue(fact.fact_value))
+  }
+
+  const handleSave = async (fact: RepoFact) => {
+    if (!userId) return
+    setSaving(true)
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/update`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stack-User-Id': userId,
+          },
+          body: JSON.stringify({
+            fact_id: fact.id,
+            fact_type: fact.fact_type,
+            value: editValue,
+          }),
+        }
+      )
+
+      if (res.ok) {
+        // Update local state
+        setFacts(prev =>
+          prev.map(f =>
+            f.id === fact.id
+              ? { ...f, fact_value: { value: editValue }, updated_at: new Date().toISOString() }
+              : f
+          )
+        )
+        setRecentChanges(prev => [{
+          id: fact.id,
+          fact_type: fact.fact_type,
+          old_value: renderValue(fact.fact_value),
+          new_value: editValue,
+          timestamp: new Date(),
+        }, ...prev].slice(0, 5))
+      }
+    } catch (error) {
+      console.error('Failed to update fact:', error)
+    } finally {
+      setSaving(false)
+      setEditingFact(null)
+      setEditValue('')
+    }
+  }
+
+  const handleCancel = () => {
+    setEditingFact(null)
+    setEditValue('')
+  }
 
   // Fetch all facts (the "repo")
   useEffect(() => {
@@ -72,57 +133,63 @@ export function RepoSection({ userId }: RepoSectionProps) {
     fetchRepo()
   }, [userId])
 
-  // SSE for real-time updates
-  useEffect(() => {
-    if (!userId) return
+  // SSE event handler for real-time updates
+  const handleSSEEvent = useCallback((eventType: string, data: unknown) => {
+    const eventData = data as Record<string, unknown>
 
-    const eventSource = new EventSource(
-      `${process.env.NEXT_PUBLIC_GATEWAY_URL}/dashboard/events?user_id=${userId}`
-    )
-
-    eventSource.addEventListener('fact_extracted', (e) => {
-      const data = JSON.parse(e.data)
-
+    if (eventType === 'fact_extracted') {
       // Add to recent changes
       setRecentChanges(prev => [{
-        id: data.id || Date.now().toString(),
-        fact_type: data.fact_type,
+        id: (eventData.id as string) || Date.now().toString(),
+        fact_type: eventData.fact_type as string,
         old_value: undefined,
-        new_value: typeof data.fact_value === 'string' ? data.fact_value : JSON.stringify(data.fact_value),
+        new_value: typeof eventData.fact_value === 'string'
+          ? eventData.fact_value
+          : JSON.stringify(eventData.fact_value),
         timestamp: new Date(),
       }, ...prev].slice(0, 5))
 
       // Update facts
       setFacts(prev => {
-        const existing = prev.find(f => f.fact_type === data.fact_type)
+        const existing = prev.find(f => f.fact_type === eventData.fact_type)
         if (existing) {
-          return prev.map(f => f.fact_type === data.fact_type ? { ...f, ...data, updated_at: new Date().toISOString() } : f)
+          return prev.map(f =>
+            f.fact_type === eventData.fact_type
+              ? { ...f, ...eventData, updated_at: new Date().toISOString() } as RepoFact
+              : f
+          )
         }
-        return [...prev, { ...data, updated_at: new Date().toISOString() }]
+        return [...prev, { ...eventData, updated_at: new Date().toISOString() } as RepoFact]
       })
-    })
-
-    eventSource.addEventListener('fact_updated', (e) => {
-      const data = JSON.parse(e.data)
-
+    } else if (eventType === 'fact_updated') {
       // Find old value for change log
-      const oldFact = facts.find(f => f.id === data.id)
+      setFacts(prev => {
+        const oldFact = prev.find(f => f.id === eventData.id)
 
-      setRecentChanges(prev => [{
-        id: data.id,
-        fact_type: data.fact_type,
-        old_value: oldFact ? renderValue(oldFact.fact_value) : undefined,
-        new_value: typeof data.fact_value === 'string' ? data.fact_value : JSON.stringify(data.fact_value),
-        timestamp: new Date(),
-      }, ...prev].slice(0, 5))
+        setRecentChanges(changes => [{
+          id: eventData.id as string,
+          fact_type: eventData.fact_type as string,
+          old_value: oldFact ? renderValue(oldFact.fact_value) : undefined,
+          new_value: typeof eventData.fact_value === 'string'
+            ? eventData.fact_value
+            : JSON.stringify(eventData.fact_value),
+          timestamp: new Date(),
+        }, ...changes].slice(0, 5))
 
-      setFacts(prev => prev.map(f =>
-        f.id === data.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
-      ))
-    })
+        return prev.map(f =>
+          f.id === eventData.id
+            ? { ...f, ...eventData, updated_at: new Date().toISOString() } as RepoFact
+            : f
+        )
+      })
+    }
+  }, [])
 
-    return () => eventSource.close()
-  }, [userId, facts])
+  const { connected, reconnecting } = useSSE({
+    userId,
+    onEvent: handleSSEEvent,
+    events: ['fact_extracted', 'fact_updated'],
+  })
 
   if (!userId) {
     return (
@@ -145,6 +212,13 @@ export function RepoSection({ userId }: RepoSectionProps) {
         <div className="flex items-center gap-2">
           <span className="text-lg">📦</span>
           <h2 className="font-semibold">Your Repo</h2>
+          {reconnecting ? (
+            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" title="Reconnecting..." />
+          ) : connected ? (
+            <span className="w-2 h-2 bg-green-500 rounded-full" title="Connected" />
+          ) : (
+            <span className="w-2 h-2 bg-gray-500 rounded-full" title="Disconnected" />
+          )}
         </div>
         <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">
           Shared Space
@@ -209,22 +283,59 @@ export function RepoSection({ userId }: RepoSectionProps) {
                   {categoryFacts.map(fact => (
                     <div
                       key={fact.id}
-                      className="p-2 bg-white/5 rounded-lg border border-white/10 hover:border-purple-500/50 transition cursor-pointer group"
+                      className="p-2 bg-white/5 rounded-lg border border-white/10 hover:border-purple-500/50 transition group"
                     >
                       <div className="text-xs text-gray-400 capitalize mb-0.5">
                         {fact.fact_type.replace(/_/g, ' ')}
                       </div>
-                      <div className="text-sm text-white font-medium truncate">
-                        {renderValue(fact.fact_value)}
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <div className="text-xs text-gray-500">
-                          {Math.round(fact.confidence * 100)}% conf
+
+                      {editingFact === fact.id ? (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="w-full px-2 py-1 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSave(fact)
+                              if (e.key === 'Escape') handleCancel()
+                            }}
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleSave(fact)}
+                              disabled={saving}
+                              className="flex-1 px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 disabled:opacity-50"
+                            >
+                              {saving ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              onClick={handleCancel}
+                              className="px-2 py-1 text-xs text-gray-400 hover:text-white"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        <button className="opacity-0 group-hover:opacity-100 text-xs text-purple-400 transition">
-                          Edit
-                        </button>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="text-sm text-white font-medium truncate">
+                            {renderValue(fact.fact_value)}
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <div className="text-xs text-gray-500">
+                              {Math.round(fact.confidence * 100)}% conf
+                            </div>
+                            <button
+                              onClick={() => handleEdit(fact)}
+                              className="opacity-0 group-hover:opacity-100 text-xs text-purple-400 transition hover:text-purple-300"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

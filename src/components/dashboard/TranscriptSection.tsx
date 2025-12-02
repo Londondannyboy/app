@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSSE } from '@/hooks/useSSE'
 
 interface TranscriptMessage {
   id: string
@@ -21,23 +22,17 @@ export function TranscriptSection({ userId }: TranscriptSectionProps) {
   const [filter, setFilter] = useState<'all' | 'voice' | 'chat'>('all')
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // SSE for live transcript
-  useEffect(() => {
-    if (!userId) return
+  const handleSSEEvent = useCallback((eventType: string, data: unknown) => {
+    const eventData = data as Record<string, unknown>
 
-    const eventSource = new EventSource(
-      `${process.env.NEXT_PUBLIC_GATEWAY_URL}/dashboard/events?user_id=${userId}`
-    )
-
-    eventSource.addEventListener('transcript_message', (e) => {
-      const data = JSON.parse(e.data)
+    if (eventType === 'transcript_message') {
       setMessages(prev => [...prev, {
-        id: data.id || Date.now().toString(),
-        role: data.role,
-        content: data.content,
-        timestamp: new Date(data.timestamp || Date.now()),
-        source: data.source || 'chat',
-        emotions: data.emotions,
+        id: (eventData.id as string) || Date.now().toString(),
+        role: eventData.role as 'user' | 'assistant',
+        content: eventData.content as string,
+        timestamp: new Date((eventData.timestamp as string) || Date.now()),
+        source: (eventData.source as 'voice' | 'chat') || 'chat',
+        emotions: eventData.emotions as Record<string, number> | undefined,
       }])
       setIsLive(true)
 
@@ -48,22 +43,25 @@ export function TranscriptSection({ userId }: TranscriptSectionProps) {
           behavior: 'smooth'
         })
       }, 100)
-    })
-
-    eventSource.addEventListener('session_start', () => {
+    } else if (eventType === 'session_start') {
       setIsLive(true)
-    })
-
-    eventSource.addEventListener('session_end', () => {
-      setIsLive(false)
-    })
-
-    eventSource.onerror = () => {
+    } else if (eventType === 'session_end') {
       setIsLive(false)
     }
+  }, [])
 
-    return () => eventSource.close()
-  }, [userId])
+  const { connected, reconnecting, retryCount } = useSSE({
+    userId,
+    onEvent: handleSSEEvent,
+    events: ['transcript_message', 'session_start', 'session_end'],
+  })
+
+  // Update live status based on connection
+  useEffect(() => {
+    if (!connected && !reconnecting) {
+      setIsLive(false)
+    }
+  }, [connected, reconnecting])
 
   // Fetch recent transcript history
   useEffect(() => {
@@ -110,12 +108,22 @@ export function TranscriptSection({ userId }: TranscriptSectionProps) {
         <div className="flex items-center gap-2">
           <span className="text-lg">📝</span>
           <h2 className="font-semibold">Transcript</h2>
-          {isLive && (
+          {reconnecting ? (
+            <span className="flex items-center gap-1 text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse" />
+              Reconnecting ({retryCount})
+            </span>
+          ) : isLive ? (
             <span className="flex items-center gap-1 text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
               <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
               Live
             </span>
-          )}
+          ) : connected ? (
+            <span className="flex items-center gap-1 text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+              Connected
+            </span>
+          ) : null}
         </div>
         <div className="flex gap-1">
           {(['all', 'voice', 'chat'] as const).map(f => (
@@ -179,7 +187,26 @@ export function TranscriptSection({ userId }: TranscriptSectionProps) {
       {/* Footer with stats */}
       <div className="px-4 py-2 border-t border-white/10 flex items-center justify-between text-xs text-gray-500 flex-shrink-0">
         <span>{filteredMessages.length} messages</span>
-        <button className="text-purple-400 hover:text-purple-300 transition">
+        <button
+          onClick={() => {
+            // Export transcript as text file
+            const content = filteredMessages
+              .map(m => `[${formatTime(new Date(m.timestamp))}] ${m.role === 'user' ? 'You' : 'Assistant'}: ${m.content}`)
+              .join('\n\n')
+
+            const blob = new Blob([content], { type: 'text/plain' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `transcript-${new Date().toISOString().split('T')[0]}.txt`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+          }}
+          disabled={filteredMessages.length === 0}
+          className="text-purple-400 hover:text-purple-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           Export
         </button>
       </div>
