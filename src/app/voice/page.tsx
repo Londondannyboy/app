@@ -3,6 +3,7 @@
 import { useUser, UserButton } from '@stackframe/stack'
 import { VoiceWidget } from '@/components/VoiceWidget'
 import { UserFactsPanel } from '@/components/UserFactsPanel'
+import { ArticlesPanel } from '@/components/ArticlesPanel'
 
 export default function VoicePage() {
   const user = useUser()
@@ -11,7 +12,7 @@ export default function VoicePage() {
   return (
     <main className="flex min-h-screen">
       {/* Header with auth */}
-      <div className="absolute top-4 right-4 flex items-center gap-4">
+      <div className="absolute top-4 right-4 flex items-center gap-4 z-10">
         <a href="/" className="text-gray-400 hover:text-white transition">← Home</a>
         <a href="/chat" className="text-gray-400 hover:text-white transition">Chat</a>
         <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
@@ -36,9 +37,21 @@ export default function VoicePage() {
         <VoiceWidget userId={userId} />
       </div>
 
-      {/* Facts sidebar */}
-      <aside className="w-80 bg-black/20 border-l border-white/10 p-4">
-        <UserFactsPanel userId={userId} />
+      {/* Sidebar with facts and articles */}
+      <aside className="w-96 bg-black/20 border-l border-white/10 p-4 overflow-y-auto max-h-screen">
+        {/* User Facts */}
+        <div className="mb-6">
+          <UserFactsPanel userId={userId} />
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-white/10 my-6" />
+
+        {/* Articles */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Articles</h2>
+          <ArticlesPanel userId={userId} />
+        </div>
       </aside>
     </main>
   )
