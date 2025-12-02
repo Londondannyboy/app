@@ -29,6 +29,21 @@ const FACT_CATEGORIES = {
   interests: ['visa_interest', 'lifestyle', 'priorities'],
 }
 
+// Validated options for each fact type
+const FACT_OPTIONS: Record<string, string[]> = {
+  destination: ['Cyprus', 'Malta', 'Slovenia', 'Portugal', 'Spain', 'Greece', 'Italy', 'Croatia', 'Estonia', 'Czech Republic', 'Hungary', 'Poland', 'Germany', 'Netherlands', 'France', 'UK', 'Ireland', 'UAE', 'Singapore', 'Thailand', 'Mexico', 'Costa Rica', 'Other'],
+  origin: ['United Kingdom', 'United States', 'Canada', 'Australia', 'Germany', 'France', 'Netherlands', 'Ireland', 'New Zealand', 'South Africa', 'India', 'Other'],
+  budget: ['Under €1,000/month', '€1,000-2,000/month', '€2,000-3,000/month', '€3,000-5,000/month', '€5,000-10,000/month', 'Over €10,000/month'],
+  timeline: ['ASAP', '1-3 months', '3-6 months', '6-12 months', '1-2 years', 'No rush / exploring'],
+  family_status: ['Single', 'In a relationship', 'Married', 'Married with children', 'Single parent', 'Retired couple'],
+  profession: ['Software Developer', 'Designer', 'Marketing', 'Finance', 'Consultant', 'Entrepreneur', 'Freelancer', 'Remote Worker', 'Digital Nomad', 'Executive', 'Healthcare', 'Education', 'Other'],
+  nationality: ['British', 'American', 'Canadian', 'Australian', 'German', 'French', 'Dutch', 'Irish', 'New Zealander', 'South African', 'Indian', 'Other'],
+  work_type: ['Fully Remote', 'Hybrid', 'On-site', 'Self-employed', 'Retired', 'Looking for work'],
+  visa_interest: ['Digital Nomad Visa', 'Golden Visa', 'Work Permit', 'Freelance Visa', 'Retirement Visa', 'Student Visa', 'Startup Visa', 'Not sure yet'],
+  lifestyle: ['Urban city life', 'Beach / coastal', 'Mountain / countryside', 'Suburban', 'Island life', 'Flexible / traveling'],
+  priorities: ['Low cost of living', 'Quality healthcare', 'Good weather', 'English-speaking', 'Low taxes', 'Safety', 'Expat community', 'Work opportunities', 'Nature / outdoor activities', 'Culture / food'],
+}
+
 function renderValue(value: string | Record<string, unknown>): string {
   if (typeof value === 'string') return value
   if (typeof value === 'object' && value !== null) {
@@ -291,21 +306,38 @@ export function RepoSection({ userId }: RepoSectionProps) {
 
                       {editingFact === fact.id ? (
                         <div className="space-y-2">
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="w-full px-2 py-1 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSave(fact)
-                              if (e.key === 'Escape') handleCancel()
-                            }}
-                          />
+                          {FACT_OPTIONS[fact.fact_type] ? (
+                            <select
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="w-full px-2 py-1 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') handleCancel()
+                              }}
+                            >
+                              <option value="">Select...</option>
+                              {FACT_OPTIONS[fact.fact_type].map(option => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="w-full px-2 py-1 text-sm bg-black/50 border border-purple-500/50 rounded focus:outline-none focus:border-purple-500"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSave(fact)
+                                if (e.key === 'Escape') handleCancel()
+                              }}
+                            />
+                          )}
                           <div className="flex gap-1">
                             <button
                               onClick={() => handleSave(fact)}
-                              disabled={saving}
+                              disabled={saving || !editValue}
                               className="flex-1 px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 disabled:opacity-50"
                             >
                               {saving ? 'Saving...' : 'Save'}
