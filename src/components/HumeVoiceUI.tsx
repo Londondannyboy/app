@@ -102,19 +102,33 @@ function VoiceControls({
       {/* Recent messages */}
       {isConnected && recentMessages.length > 0 && (
         <div className="mt-4 w-full max-w-md space-y-2">
-          {recentMessages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`p-3 rounded-lg text-sm ${
-                msg.type === 'user_message'
-                  ? 'bg-purple-500/20 text-purple-200 ml-8'
-                  : 'bg-white/10 text-gray-300 mr-8'
-              }`}
-            >
-              {msg.type === 'user_message' && msg.message?.content}
-              {msg.type === 'assistant_message' && msg.message?.content}
-            </div>
-          ))}
+          {recentMessages.map((msg, idx) => {
+            // Safely extract message content as string
+            let content = ''
+            if (msg.type === 'user_message' || msg.type === 'assistant_message') {
+              const msgContent = (msg as any).message?.content
+              if (typeof msgContent === 'string') {
+                content = msgContent
+              } else if (msgContent && typeof msgContent === 'object') {
+                content = JSON.stringify(msgContent)
+              }
+            }
+
+            if (!content) return null
+
+            return (
+              <div
+                key={idx}
+                className={`p-3 rounded-lg text-sm ${
+                  msg.type === 'user_message'
+                    ? 'bg-purple-500/20 text-purple-200 ml-8'
+                    : 'bg-white/10 text-gray-300 mr-8'
+                }`}
+              >
+                {content}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

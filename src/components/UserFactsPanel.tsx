@@ -5,11 +5,23 @@ import { useState, useEffect } from 'react'
 interface Fact {
   id: string
   fact_type: string
-  fact_value: string
+  fact_value: string | Record<string, unknown>
   confidence: number
   source: string
   created_at: string
   isNew?: boolean
+}
+
+// Helper to safely render fact values (can be string or JSONB object)
+function renderFactValue(value: string | Record<string, unknown>): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'object' && value !== null) {
+    // If object has a 'value' key, use that
+    if ('value' in value && typeof value.value === 'string') return value.value
+    // Otherwise stringify
+    return JSON.stringify(value)
+  }
+  return String(value)
 }
 
 interface UserFactsPanelProps {
@@ -139,7 +151,7 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
               </span>
             </div>
             <div className="text-white font-medium">
-              {fact.fact_value}
+              {renderFactValue(fact.fact_value)}
             </div>
             <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
               <div className="flex items-center gap-1">
