@@ -4,6 +4,7 @@ import { useUser, UserButton } from '@stackframe/stack'
 import { VoiceWidget } from '@/components/VoiceWidget'
 import { UserFactsPanel } from '@/components/UserFactsPanel'
 import { ArticlesPanel } from '@/components/ArticlesPanel'
+import { ZepGraphPanel } from '@/components/ZepGraphPanel'
 
 export default function VoicePage() {
   const user = useUser()
@@ -37,11 +38,19 @@ export default function VoicePage() {
         <VoiceWidget userId={userId} />
       </div>
 
-      {/* Sidebar with facts and articles */}
+      {/* Sidebar with facts, graph, and articles */}
       <aside className="w-96 bg-black/20 border-l border-white/10 p-4 overflow-y-auto max-h-screen">
         {/* User Facts */}
         <div className="mb-6">
           <UserFactsPanel userId={userId} />
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-white/10 my-6" />
+
+        {/* ZEP Knowledge Graph */}
+        <div className="mb-6">
+          <ZepGraphPanel userId={userId} />
         </div>
 
         {/* Divider */}
