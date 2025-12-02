@@ -1,12 +1,23 @@
 import { neon } from '@neondatabase/serverless'
 import type { UserProfile, UserFact, Article } from '@quest/types'
 
-const sql = neon(process.env.DATABASE_URL!)
+// Lazy initialization - only create connection when actually used
+let _sql: ReturnType<typeof neon> | null = null
+function getSql() {
+  if (!_sql) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL environment variable is not set')
+    }
+    _sql = neon(process.env.DATABASE_URL)
+  }
+  return _sql
+}
 
 /**
  * Get or create user profile by Stack Auth user ID
  */
 export async function getOrCreateProfile(stackUserId: string): Promise<number> {
+  const sql = getSql()
   // Try to find existing profile
   const existing = await sql`
     SELECT id FROM user_profiles
@@ -31,6 +42,7 @@ export async function getOrCreateProfile(stackUserId: string): Promise<number> {
  * Get all active facts for a user (their "repo")
  */
 export async function getUserFacts(stackUserId: string): Promise<UserFact[]> {
+  const sql = getSql()
   const rows = await sql`
     SELECT
       f.id, f.user_profile_id, f.fact_type, f.fact_value,
@@ -56,6 +68,7 @@ export async function storeFact(
   source: string,
   confidence: number
 ): Promise<number> {
+  const sql = getSql()
   const result = await sql`
     INSERT INTO user_facts (
       user_profile_id, fact_type, fact_value,
@@ -81,6 +94,7 @@ export async function updateFact(
   factValue: any,
   source: string
 ): Promise<void> {
+  const sql = getSql()
   await sql`
     UPDATE user_facts
     SET
@@ -100,6 +114,7 @@ export async function searchArticles(
   appFilter: 'relocation' | 'placement' = 'relocation',
   limit: number = 5
 ): Promise<Article[]> {
+  const sql = getSql()
   const rows = await sql`
     SELECT
       id, title, slug, excerpt, content, country, country_name,
@@ -130,6 +145,7 @@ export async function getArticlesByCountry(
   appFilter: 'relocation' | 'placement' = 'relocation',
   limit: number = 10
 ): Promise<Article[]> {
+  const sql = getSql()
   const rows = await sql`
     SELECT
       id, title, slug, excerpt, country, country_name,
