@@ -74,9 +74,20 @@ export function RepoSection({ userId }: RepoSectionProps) {
 
   const handleSave = async (fact: RepoFact) => {
     if (!userId) return
+    if (!editValue) {
+      alert('Please select a value')
+      return
+    }
     setSaving(true)
 
     try {
+      const payload = {
+        fact_id: String(fact.id),
+        fact_type: fact.fact_type,
+        value: editValue,
+      }
+      console.log('Saving fact:', payload)
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/update`,
         {
@@ -85,15 +96,14 @@ export function RepoSection({ userId }: RepoSectionProps) {
             'Content-Type': 'application/json',
             'X-Stack-User-Id': userId,
           },
-          body: JSON.stringify({
-            fact_id: fact.id,
-            fact_type: fact.fact_type,
-            value: editValue,
-          }),
+          body: JSON.stringify(payload),
         }
       )
 
-      if (res.ok) {
+      const data = await res.json()
+      console.log('Save response:', data)
+
+      if (res.ok && data.success) {
         // Update local state
         setFacts(prev =>
           prev.map(f =>
@@ -109,9 +119,13 @@ export function RepoSection({ userId }: RepoSectionProps) {
           new_value: editValue,
           timestamp: new Date(),
         }, ...prev].slice(0, 5))
+      } else {
+        console.error('Save failed:', data)
+        alert(`Failed to save: ${data.detail || data.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Failed to update fact:', error)
+      alert('Network error - please try again')
     } finally {
       setSaving(false)
       setEditingFact(null)
