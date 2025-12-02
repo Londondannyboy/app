@@ -154,7 +154,7 @@ export default function ArticlesPage() {
     const fetchArticles = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_GATEWAY_URL}/content/articles?limit=100`
+          `${process.env.NEXT_PUBLIC_GATEWAY_URL}/dashboard/content/articles?limit=100`
         )
         if (res.ok) {
           const data = await res.json()
