@@ -8,7 +8,8 @@ function getSql() {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL environment variable is not set')
     }
-    _sql = neon(process.env.DATABASE_URL)
+    // Configure to return arrays directly instead of FullQueryResults
+    _sql = neon(process.env.DATABASE_URL, { fullResults: false })
   }
   return _sql
 }
