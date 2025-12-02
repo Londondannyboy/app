@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     })
 
     const result = streamText({
-      model: thesys('c1/anthropic/claude-sonnet-4/v-20250815'),
+      model: thesys('c1/anthropic/claude-sonnet-4/v-20250815') as any,
       system: systemMessage,
       messages,
     })
