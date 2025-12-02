@@ -49,23 +49,46 @@ class VoiceErrorBoundary extends Component<
 }
 
 // Lazy load the Hume components to avoid SSR issues
-const HumeVoiceUI = dynamic(() => import('./HumeVoiceUI'), {
-  ssr: false,
-  loading: () => (
-    <div className="p-5 text-center text-gray-500">
-      Loading voice interface...
-    </div>
-  ),
-})
+const HumeVoiceUI = dynamic(
+  () => import('./HumeVoiceUI').catch((err) => {
+    console.error('Failed to load HumeVoiceUI:', err)
+    // Return a fallback component on error
+    return {
+      default: () => (
+        <div className="p-5 bg-red-500/20 rounded-xl text-red-300 text-center">
+          <p className="font-medium mb-2">Failed to load voice interface</p>
+          <p className="text-sm text-red-400">Please refresh the page</p>
+        </div>
+      ),
+    }
+  }),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-5 text-center text-gray-500">
+        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        Loading voice interface...
+      </div>
+    ),
+  }
+)
 
 export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [loadTimeout, setLoadTimeout] = useState(false)
 
   // Ensure client-side only
   useEffect(() => {
     setIsClient(true)
+
+    // Set a timeout to show a warning if loading takes too long
+    const timer = setTimeout(() => {
+      setLoadTimeout(true)
+    }, 10000) // 10 seconds
+
+    return () => clearTimeout(timer)
   }, [])
 
   // Fetch access token on mount
@@ -138,6 +161,17 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
       <div className="p-5 text-center text-gray-500">
         <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
         Initializing voice interface...
+        {loadTimeout && (
+          <p className="text-xs text-yellow-400 mt-2">
+            Taking longer than expected...
+            <button
+              onClick={() => window.location.reload()}
+              className="ml-2 underline hover:text-yellow-300"
+            >
+              Refresh
+            </button>
+          </p>
+        )}
       </div>
     )
   }
