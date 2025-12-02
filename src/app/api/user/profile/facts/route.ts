@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFacts } from '@quest/api-clients'
+import { getUserFacts } from '@/lib/api-clients'
 
 /**
  * GET /api/user/profile/facts?user_id=xxx

@@ -1,4 +1,4 @@
-import type { KnowledgeGraphContext } from '@quest/types'
+import type { KnowledgeGraphContext } from '@/lib/types'
 
 const ZEP_API_KEY = process.env.ZEP_API_KEY!
 const ZEP_BASE_URL = 'https://api.getzep.com/api/v2'

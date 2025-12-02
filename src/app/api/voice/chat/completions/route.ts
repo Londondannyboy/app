@@ -7,13 +7,13 @@ import {
   searchArticles,
   getOrCreateProfile,
   storeFact
-} from '@quest/api-clients'
+} from '@/lib/api-clients'
 import type {
   ChatCompletionRequest,
   SSEChunk,
   UserFact,
   VoiceContext
-} from '@quest/types'
+} from '@/lib/types'
 
 // Natural bridge expressions for complex queries
 const BRIDGE_EXPRESSIONS = [

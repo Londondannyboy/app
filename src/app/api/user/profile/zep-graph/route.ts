@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchKnowledgeGraph } from '@quest/api-clients'
+import { searchKnowledgeGraph } from '@/lib/api-clients'
 
 /**
  * GET /api/user/profile/zep-graph?user_id=xxx

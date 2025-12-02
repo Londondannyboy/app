@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless'
-import type { UserProfile, UserFact, Article } from '@quest/types'
+import type { UserProfile, UserFact, Article } from '@/lib/types'
 
 // Lazy initialization - only create connection when actually used
 let _sql: ReturnType<typeof neon> | null = null

@@ -1,4 +1,0 @@
-{
-  "buildCommand": "turbo run build --filter=relocation",
-  "installCommand": "pnpm install"
-}

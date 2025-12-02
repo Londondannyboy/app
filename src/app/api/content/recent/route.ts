@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchArticles } from '@quest/api-clients'
+import { searchArticles } from '@/lib/api-clients'
 
 /**
  * GET /api/content/recent?limit=10&app=relocation
