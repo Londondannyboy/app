@@ -108,8 +108,61 @@ export function LiveActivityPanel({ userId, onConfirmChange }: LiveActivityPanel
       }
     })
 
+    // Listen for fact extraction events
+    eventSource.addEventListener('fact_extracted', (e) => {
+      const data = JSON.parse(e.data)
+      console.log('[SSE] Fact extracted:', data)
+      // Show as a temporary tool call
+      const factId = `fact-${Date.now()}`
+      setToolCalls(prev => [...prev, {
+        id: factId,
+        name: 'extract_facts',
+        status: 'completed',
+        input: { fact_type: data.fact_type },
+        output: data.fact_value?.value || data.fact_value,
+        timestamp: new Date(),
+      }])
+      // Remove after 3 seconds
+      setTimeout(() => {
+        setToolCalls(prev => prev.filter(t => t.id !== factId))
+      }, 3000)
+    })
+
+    // Listen for content suggestions
+    eventSource.addEventListener('content_suggestion', (e) => {
+      const data = JSON.parse(e.data)
+      console.log('[SSE] Content suggestion:', data)
+      const contentId = `content-${Date.now()}`
+      setToolCalls(prev => [...prev, {
+        id: contentId,
+        name: 'search_articles',
+        status: 'completed',
+        output: data.title,
+        timestamp: new Date(),
+      }])
+      setTimeout(() => {
+        setToolCalls(prev => prev.filter(t => t.id !== contentId))
+      }, 3000)
+    })
+
+    // Listen for profile suggestions from backend (human-in-the-loop)
+    eventSource.addEventListener('profile_suggestion', (e) => {
+      const data = JSON.parse(e.data)
+      console.log('[SSE] Profile suggestion received:', data)
+      setProfileChanges(prev => [...prev, {
+        id: data.id,
+        factType: data.fact_type,
+        oldValue: data.current_value,
+        newValue: data.suggested_value,
+        confidence: data.confidence || 0.8,
+        requiresConfirmation: data.requires_confirmation ?? true,
+      }])
+    })
+
+    // Also listen for legacy event name for backwards compatibility
     eventSource.addEventListener('profile_change_pending', (e) => {
       const data = JSON.parse(e.data)
+      console.log('[SSE] Profile change pending received:', data)
       setProfileChanges(prev => [...prev, {
         id: data.id,
         factType: data.fact_type,

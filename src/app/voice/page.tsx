@@ -5,6 +5,7 @@ import { VoiceWidget } from '@/components/VoiceWidget'
 import { UserFactsPanel } from '@/components/UserFactsPanel'
 import { ArticlesPanel } from '@/components/ArticlesPanel'
 import { ZepGraphPanel } from '@/components/ZepGraphPanel'
+import { LiveActivityPanel } from '@/components/LiveActivityPanel'
 
 export default function VoicePage() {
   const user = useUser()
@@ -40,6 +41,26 @@ export default function VoicePage() {
 
       {/* Sidebar with facts, graph, and articles */}
       <aside className="w-96 bg-black/20 border-l border-white/10 p-4 overflow-y-auto max-h-screen">
+        {/* Live Activity Panel - Shows HITL confirmations and agent actions */}
+        <div className="mb-6">
+          <LiveActivityPanel
+            userId={userId}
+            onConfirmChange={async (changeId, confirmed) => {
+              // Send confirmation to backend
+              try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_GATEWAY_URL}/dashboard/profile/confirm-change`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ change_id: changeId, confirmed, user_id: userId })
+                })
+                if (!res.ok) console.error('Failed to confirm change')
+              } catch (e) {
+                console.error('Error confirming change:', e)
+              }
+            }}
+          />
+        </div>
+
         {/* User Facts */}
         <div className="mb-6">
           <UserFactsPanel userId={userId} />
