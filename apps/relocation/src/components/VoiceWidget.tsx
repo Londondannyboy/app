@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, Component, ReactNode } from 'react'
 import dynamic from 'next/dynamic'
+import { getApiUrl } from '@/lib/api'
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
 const HUME_CONFIG_ID = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || ''
 
 interface VoiceWidgetProps {
@@ -97,7 +97,7 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
 
     const fetchToken = async () => {
       try {
-        const response = await fetch(`${GATEWAY_URL}/voice/access-token`, {
+        const response = await fetch(getApiUrl('/voice/access-token'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId }),
@@ -115,11 +115,7 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
       }
     }
 
-    if (GATEWAY_URL) {
-      fetchToken()
-    } else {
-      setError('Gateway URL not configured')
-    }
+    fetchToken()
   }, [isClient, userId])
 
   if (!isClient) {
