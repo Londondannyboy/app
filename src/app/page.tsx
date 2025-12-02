@@ -43,7 +43,7 @@ export default function Home() {
           </p>
         )}
 
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-wrap gap-4 justify-center">
           <a
             href="/voice"
             className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition"
@@ -56,6 +56,14 @@ export default function Home() {
           >
             Text Chat
           </a>
+          {user && (
+            <a
+              href="/dashboard"
+              className="px-6 py-3 border border-white/20 rounded-lg hover:bg-white/10 transition"
+            >
+              Dashboard
+            </a>
+          )}
         </div>
       </div>
     </main>
