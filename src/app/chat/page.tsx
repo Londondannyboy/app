@@ -1,7 +1,7 @@
 'use client'
 
 import { useUser, UserButton } from '@stackframe/stack'
-import { TextChat } from '@/components/TextChat'
+import { QuestChat } from '@/components/QuestChat'
 import { UserFactsPanel } from '@/components/UserFactsPanel'
 import { ThinkingIndicator } from '@/components/ThinkingIndicator'
 import { LiveActivityPanel } from '@/components/LiveActivityPanel'
@@ -131,18 +131,9 @@ export default function ChatPage() {
           neonQuery={neonQuery || undefined}
         />
 
-        {/* Chat Component */}
+        {/* Chat Component - Now with TheSys C1 Generative UI! */}
         <div className="flex-1">
-          <TextChat
-            userId={userId}
-            onThinking={setThinkingStatus}
-            onToolCall={handleToolCall}
-            onToolResult={(tool) => handleToolResult(tool)}
-            onFactExtracted={(fact) => {
-              // Fact panel will update via SSE
-              console.log('Fact extracted:', fact)
-            }}
-          />
+          <QuestChat appId="relocation" />
         </div>
       </div>
 
