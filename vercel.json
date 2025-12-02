@@ -1,5 +1,3 @@
 {
-  "buildCommand": "pnpm --filter relocation build",
-  "outputDirectory": "apps/relocation/.next",
-  "installCommand": "pnpm install"
+  "buildCommand": "turbo run build --filter=relocation"
 }
