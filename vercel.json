@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm run build --filter=relocation",
+  "buildCommand": "pnpm --filter=relocation build",
   "outputDirectory": "apps/relocation/.next",
   "installCommand": "pnpm install",
   "devCommand": "pnpm run dev:relocation"
