@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSSE } from '@/hooks/useSSE'
 
 interface RepoFact {
-  id: string
+  id: number | string  // Backend returns integer, but handle string for safety
   fact_type: string
   fact_value: string | Record<string, unknown>
   confidence: number
@@ -68,7 +68,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
   const [saving, setSaving] = useState(false)
 
   const handleEdit = (fact: RepoFact) => {
-    setEditingFact(fact.id)
+    setEditingFact(String(fact.id))
     setEditValue(renderValue(fact.fact_value))
   }
 
@@ -104,21 +104,23 @@ export function RepoSection({ userId }: RepoSectionProps) {
       console.log('Save response:', data)
 
       if (res.ok && data.success) {
-        // Update local state
+        // Update local state - use String comparison for safety since id types can vary
+        const factIdStr = String(fact.id)
         setFacts(prev =>
           prev.map(f =>
-            f.id === fact.id
+            String(f.id) === factIdStr
               ? { ...f, fact_value: { value: editValue }, updated_at: new Date().toISOString() }
               : f
           )
         )
         setRecentChanges(prev => [{
-          id: fact.id,
+          id: factIdStr,
           fact_type: fact.fact_type,
           old_value: renderValue(fact.fact_value),
           new_value: editValue,
           timestamp: new Date(),
         }, ...prev].slice(0, 5))
+        console.log('Fact updated successfully in local state')
       } else {
         console.error('Save failed:', data)
         alert(`Failed to save: ${data.detail || data.error || 'Unknown error'}`)
@@ -169,7 +171,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
     if (eventType === 'fact_extracted') {
       // Add to recent changes
       setRecentChanges(prev => [{
-        id: (eventData.id as string) || Date.now().toString(),
+        id: eventData.id ? String(eventData.id) : Date.now().toString(),
         fact_type: eventData.fact_type as string,
         old_value: undefined,
         new_value: typeof eventData.fact_value === 'string'
@@ -191,12 +193,13 @@ export function RepoSection({ userId }: RepoSectionProps) {
         return [...prev, { ...eventData, updated_at: new Date().toISOString() } as RepoFact]
       })
     } else if (eventType === 'fact_updated') {
-      // Find old value for change log
+      // Find old value for change log - use String comparison for type safety
+      const eventIdStr = String(eventData.id)
       setFacts(prev => {
-        const oldFact = prev.find(f => f.id === eventData.id)
+        const oldFact = prev.find(f => String(f.id) === eventIdStr)
 
         setRecentChanges(changes => [{
-          id: eventData.id as string,
+          id: eventIdStr,
           fact_type: eventData.fact_type as string,
           old_value: oldFact ? renderValue(oldFact.fact_value) : undefined,
           new_value: typeof eventData.fact_value === 'string'
@@ -206,7 +209,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
         }, ...changes].slice(0, 5))
 
         return prev.map(f =>
-          f.id === eventData.id
+          String(f.id) === eventIdStr
             ? { ...f, ...eventData, updated_at: new Date().toISOString() } as RepoFact
             : f
         )
@@ -318,7 +321,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
                         {fact.fact_type.replace(/_/g, ' ')}
                       </div>
 
-                      {editingFact === fact.id ? (
+                      {editingFact === String(fact.id) ? (
                         <div className="space-y-2">
                           {FACT_OPTIONS[fact.fact_type] ? (
                             <select
