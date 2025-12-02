@@ -13,6 +13,7 @@ interface Article {
   excerpt: string | null
   content: string | null
   article_mode: string
+  article_angle: string | null
   country: string | null
   country_name: string | null
   flag_emoji: string | null
@@ -22,6 +23,17 @@ interface Article {
   published_at: string | null
   word_count: number | null
   is_featured: boolean | null
+  payload: {
+    faq?: Array<{ question: string; answer: string }>
+    callouts?: Array<{ type: string; title: string; content: string }>
+    stat_highlight?: { value: string; label: string; context: string }
+    timeline?: Array<{ date: string; title: string; description: string }>
+    sources?: Array<{ title: string; url: string }>
+  } | null
+  video_narrative: {
+    playback_id?: string
+    acts?: Record<string, { start: number; end: number; title: string }>
+  } | null
 }
 
 interface RelatedArticle {
@@ -279,6 +291,110 @@ export default function ArticlePage({ params }: { params: Promise<{ slug: string
         ) : (
           <div className="text-center py-12 text-gray-500">
             <p>No content available for this article.</p>
+          </div>
+        )}
+
+        {/* Stat Highlight */}
+        {article.payload?.stat_highlight && (
+          <div className="my-12 p-8 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl text-center">
+            <div className="text-5xl font-bold text-amber-400 mb-2">
+              {article.payload.stat_highlight.value}
+            </div>
+            <div className="text-xl text-white font-medium mb-2">
+              {article.payload.stat_highlight.label}
+            </div>
+            <div className="text-gray-400">
+              {article.payload.stat_highlight.context}
+            </div>
+          </div>
+        )}
+
+        {/* FAQ Section */}
+        {article.payload?.faq && article.payload.faq.length > 0 && (
+          <div className="my-12">
+            <h2 className="text-2xl font-bold text-white mb-6 border-l-4 border-amber-500 pl-4">
+              Frequently Asked Questions
+            </h2>
+            <div className="space-y-4">
+              {article.payload.faq.map((item, idx) => (
+                <details
+                  key={idx}
+                  className="group bg-white/5 border border-white/10 rounded-xl overflow-hidden"
+                >
+                  <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5">
+                    <span className="font-medium text-white">{item.question}</span>
+                    <span className="text-amber-500 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="px-4 pb-4 text-gray-300">
+                    {item.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Callouts */}
+        {article.payload?.callouts && article.payload.callouts.length > 0 && (
+          <div className="my-12 space-y-4">
+            {article.payload.callouts.map((callout, idx) => (
+              <div
+                key={idx}
+                className={`p-6 rounded-xl border ${
+                  callout.type === 'warning'
+                    ? 'bg-yellow-500/10 border-yellow-500/30'
+                    : callout.type === 'tip'
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : 'bg-blue-500/10 border-blue-500/30'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span>{callout.type === 'warning' ? '⚠️' : callout.type === 'tip' ? '💡' : 'ℹ️'}</span>
+                  <span className="font-semibold text-white">{callout.title}</span>
+                </div>
+                <p className="text-gray-300">{callout.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Timeline */}
+        {article.payload?.timeline && article.payload.timeline.length > 0 && (
+          <div className="my-12">
+            <h2 className="text-2xl font-bold text-white mb-6 border-l-4 border-amber-500 pl-4">
+              Timeline
+            </h2>
+            <div className="space-y-4 border-l-2 border-amber-500/30 pl-6">
+              {article.payload.timeline.map((item, idx) => (
+                <div key={idx} className="relative">
+                  <div className="absolute -left-8 w-3 h-3 bg-amber-500 rounded-full" />
+                  <div className="text-sm text-amber-400 font-medium">{item.date}</div>
+                  <div className="text-white font-semibold">{item.title}</div>
+                  <div className="text-gray-400 text-sm">{item.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sources */}
+        {article.payload?.sources && article.payload.sources.length > 0 && (
+          <div className="my-12 p-6 bg-white/5 border border-white/10 rounded-xl">
+            <h3 className="text-lg font-semibold text-white mb-4">Sources</h3>
+            <ul className="space-y-2">
+              {article.payload.sources.map((source, idx) => (
+                <li key={idx}>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-500 hover:text-amber-400 underline"
+                  >
+                    {source.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
