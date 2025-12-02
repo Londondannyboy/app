@@ -17,11 +17,14 @@ export async function POST(req: Request) {
       ? 'You are Quest Relocation, helping users find their ideal country, job, and visa. Generate rich interactive UI components like article grids, job cards, and country comparisons when appropriate.'
       : 'You are Placement Quest, helping with private equity deal flow and placement agent networks. Generate interactive UI for deals, agents, and market analysis.'
 
+    // Create TheSys C1 provider
+    const thesys = createOpenAI({
+      apiKey: process.env.THESYS_API_KEY,
+      baseURL: 'https://api.thesys.dev/v1/embed',
+    })
+
     const result = streamText({
-      model: createOpenAI({
-        apiKey: process.env.THESYS_API_KEY,
-        baseURL: 'https://api.thesys.dev/v1/embed',
-      }).chat('c1/anthropic/claude-sonnet-4/v-20250815'),
+      model: thesys('c1/anthropic/claude-sonnet-4/v-20250815'),
       system: systemMessage,
       messages,
     })
