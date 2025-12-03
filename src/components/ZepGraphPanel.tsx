@@ -65,7 +65,7 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/zep-graph`,
+        `/api/user/profile/zep-graph?user_id=${userId}`,
         {
           headers: {
             'X-Stack-User-Id': userId,
@@ -99,14 +99,14 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
     setSyncing(true)
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/sync-to-zep`,
+        `/api/user/profile/sync-to-zep`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Stack-User-Id': userId,
           },
-          body: JSON.stringify({ app_id: 'relocation' }),
+          body: JSON.stringify({ user_id: userId }),
         }
       )
 

@@ -26,8 +26,9 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({
-      graph: graphContext,
-      userId
+      success: true,
+      nodes: graphContext.nodes,
+      edges: graphContext.edges
     })
   } catch (error) {
     console.error('Error fetching Zep graph:', error)
