@@ -5,8 +5,7 @@ export interface Article {
   excerpt: string | null
   content: string | null
   country: string | null
-  country_name: string | null
-  flag_emoji: string | null
+  country_code: string | null
   article_mode: 'topic' | 'guide' | 'video'
   featured_asset_url: string | null
   hero_asset_url: string | null
