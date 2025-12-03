@@ -89,12 +89,12 @@ export function RepoSection({ userId }: RepoSectionProps) {
       console.log('Saving fact:', payload)
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/update`,
+        `/api/user/profile/update`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Stack-User-Id': userId,
+            'X-User-Id': userId,
           },
           body: JSON.stringify(payload),
         }
