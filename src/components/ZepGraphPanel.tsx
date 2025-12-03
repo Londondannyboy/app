@@ -48,6 +48,7 @@ const NODE_ICONS: Record<string, string> = {
 }
 
 export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
+  const [graphType, setGraphType] = useState<'user' | 'relocation'>('user')
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [edges, setEdges] = useState<GraphEdge[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,7 +66,7 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
 
     try {
       const res = await fetch(
-        `/api/user/profile/zep-graph?user_id=${userId}`,
+        `/api/user/profile/zep-graph?user_id=${userId}&graph_type=${graphType}`,
         {
           headers: {
             'X-Stack-User-Id': userId,
@@ -90,7 +91,7 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [userId, graphType])
 
   // Sync profile to ZEP
   const syncToZep = async () => {
@@ -228,16 +229,43 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-400">Knowledge Graph</h3>
-        <button
-          onClick={syncToZep}
-          disabled={syncing}
-          className="px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 disabled:opacity-50 transition"
-        >
-          {syncing ? 'Syncing...' : 'Sync'}
-        </button>
+      {/* Header with Graph Type Tabs */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-400">Knowledge Graph</h3>
+          <button
+            onClick={syncToZep}
+            disabled={syncing || graphType === 'relocation'}
+            className="px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 disabled:opacity-50 transition"
+            title={graphType === 'relocation' ? 'Sync only available for user graph' : 'Sync your profile to ZEP'}
+          >
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
+        </div>
+
+        {/* Graph Type Tabs */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setGraphType('user')}
+            className={`flex-1 px-3 py-1.5 text-xs rounded transition ${
+              graphType === 'user'
+                ? 'bg-purple-500/30 text-purple-300 font-medium'
+                : 'bg-white/5 text-gray-500 hover:bg-white/10'
+            }`}
+          >
+            👤 Your Graph
+          </button>
+          <button
+            onClick={() => setGraphType('relocation')}
+            className={`flex-1 px-3 py-1.5 text-xs rounded transition ${
+              graphType === 'relocation'
+                ? 'bg-purple-500/30 text-purple-300 font-medium'
+                : 'bg-white/5 text-gray-500 hover:bg-white/10'
+            }`}
+          >
+            🌍 Relocation
+          </button>
+        </div>
       </div>
 
       {/* Graph Container */}

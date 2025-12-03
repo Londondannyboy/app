@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFacts } from '@/lib/api-clients'
+import { getUserFacts, syncUserProfile } from '@/lib/api-clients'
 
 /**
  * POST /api/user/profile/sync-to-zep
  *
  * Syncs user profile facts to Zep knowledge graph
+ * Creates/updates a user-specific graph: user_{userId}
  */
 export async function POST(request: NextRequest) {
   try {
@@ -18,22 +19,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user facts
+    console.log(`Syncing facts to Zep for user ${user_id}`)
+
+    // Get user facts from database
     const facts = await getUserFacts(user_id)
 
-    // TODO: Implement actual Zep sync when Zep API client has sync method
-    // For now, just return success
-    console.log(`Syncing ${facts.length} facts to Zep for user ${user_id}`)
+    if (facts.length === 0) {
+      return NextResponse.json({
+        success: true,
+        synced: 0,
+        message: 'No facts to sync'
+      })
+    }
+
+    // Sync to Zep user graph
+    const result = await syncUserProfile(user_id, facts)
+
+    if (!result.success) {
+      return NextResponse.json({
+        success: false,
+        error: result.error || 'Failed to sync to Zep'
+      }, { status: 500 })
+    }
 
     return NextResponse.json({
       success: true,
       synced: facts.length,
-      message: 'User facts synced to Zep'
+      graphId: `user_${user_id}`,
+      message: `Synced ${facts.length} facts to Zep`
     })
   } catch (error) {
     console.error('Error syncing to Zep:', error)
     return NextResponse.json(
-      { error: 'Failed to sync to Zep' },
+      { success: false, error: 'Failed to sync to Zep' },
       { status: 500 }
     )
   }

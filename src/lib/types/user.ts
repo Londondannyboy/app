@@ -27,6 +27,7 @@ export interface FactValue {
 }
 
 export type FactType =
+  | 'name'
   | 'destination'
   | 'origin'
   | 'budget'

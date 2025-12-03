@@ -150,11 +150,84 @@ function formatForLLM(edges: any[], nodes: any[]): string {
 
 /**
  * Sync user facts to ZEP user graph (for personalization)
+ * Creates/updates nodes and edges in a user-specific graph
  */
 export async function syncUserProfile(
   userId: string,
   facts: Array<{ fact_type: string; fact_value: any }>
-): Promise<void> {
-  // Future: implement user graph sync
-  // For now, we use Neon as source of truth
+): Promise<{ success: boolean; error?: string }> {
+  const graphId = `user_${userId}`
+
+  try {
+    // Add user node if it doesn't exist
+    const userNode = {
+      name: `User ${userId.slice(0, 8)}`,
+      type: 'User',
+      uuid: userId,
+      attributes: {
+        user_id: userId,
+        created_at: new Date().toISOString()
+      }
+    }
+
+    await fetch(`${ZEP_BASE_URL}/graph/${graphId}/nodes`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ZEP_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ nodes: [userNode] })
+    })
+
+    // Add fact nodes and edges
+    const factNodes = facts.map(fact => {
+      const value = typeof fact.fact_value === 'object'
+        ? fact.fact_value.value
+        : fact.fact_value
+
+      return {
+        name: String(value),
+        type: fact.fact_type.charAt(0).toUpperCase() + fact.fact_type.slice(1),
+        uuid: `${userId}_${fact.fact_type}`,
+        attributes: {
+          fact_type: fact.fact_type,
+          value: String(value)
+        }
+      }
+    })
+
+    if (factNodes.length > 0) {
+      await fetch(`${ZEP_BASE_URL}/graph/${graphId}/nodes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ZEP_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ nodes: factNodes })
+      })
+
+      // Create edges connecting user to facts
+      const edges = factNodes.map(node => ({
+        source: userId,
+        target: node.uuid,
+        fact: `User has ${node.attributes.fact_type}: ${node.attributes.value}`,
+        name: `HAS_${node.type.toUpperCase()}`
+      }))
+
+      await fetch(`${ZEP_BASE_URL}/graph/${graphId}/edges`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ZEP_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ edges })
+      })
+    }
+
+    console.log(`✅ Synced ${facts.length} facts to ZEP graph ${graphId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('ZEP sync error:', error)
+    return { success: false, error: String(error) }
+  }
 }

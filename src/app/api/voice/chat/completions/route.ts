@@ -226,7 +226,7 @@ function formatContextForLLM(context: VoiceContext): string {
   let userName = ''
   if (context.user_profile && context.user_profile.length > 0) {
     const nameFact = context.user_profile.find(f =>
-      f.fact_type === 'name' || f.fact_type === 'first_name'
+      f.fact_type === 'name'
     )
     if (nameFact) {
       const value = typeof nameFact.fact_value === 'object'
