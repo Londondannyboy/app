@@ -1,6 +1,6 @@
 'use client'
 
-import { useUser, UserButton } from '@stackframe/stack'
+import { useUser } from '@stackframe/stack'
 import { useState } from 'react'
 import { ProfileSection } from '@/components/dashboard/ProfileSection'
 import { RepoSection } from '@/components/dashboard/RepoSection'
@@ -8,6 +8,10 @@ import { TranscriptSection } from '@/components/dashboard/TranscriptSection'
 import { SummarySection } from '@/components/dashboard/SummarySection'
 import { ArticlesSection } from '@/components/dashboard/ArticlesSection'
 import { ZepGraphPanel } from '@/components/ZepGraphPanel'
+import { HITLConfirmations } from '@/components/HITLConfirmations'
+import { GlobalHeader } from '@/components/GlobalHeader'
+import { GlobalFooter } from '@/components/GlobalFooter'
+import { DebugPanel } from '@/components/DebugPanel'
 
 export default function DashboardPage() {
   const user = useUser({ or: 'redirect' })
@@ -17,28 +21,11 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'profile' | 'repo' | 'graph' | 'transcript' | 'summary' | 'articles'>('profile')
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
-      {/* Header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-sm sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <a href="/" className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-              Quest
-            </a>
-            <nav className="hidden md:flex items-center gap-4 ml-8">
-              <a href="/chat" className="text-gray-400 hover:text-white transition">Chat</a>
-              <a href="/voice" className="text-gray-400 hover:text-white transition">Voice</a>
-              <span className="text-white font-medium">Dashboard</span>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400 hidden md:block">
-              {user?.displayName || user?.primaryEmail}
-            </span>
-            <UserButton />
-          </div>
-        </div>
-      </header>
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
+      <GlobalHeader />
+      <HITLConfirmations userId={userId} />
+
+      <main className="flex-1">
 
       {/* Mobile Tab Navigation */}
       <div className="md:hidden flex border-b border-white/10 overflow-x-auto">
@@ -98,5 +85,9 @@ export default function DashboardPage() {
         </div>
       </div>
     </main>
+
+    <DebugPanel userId={userId} show={true} />
+    <GlobalFooter />
+  </div>
   )
 }

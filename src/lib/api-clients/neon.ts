@@ -346,3 +346,54 @@ export async function getTranscripts(
   const allTranscripts = users.length > 0 ? (users[0].transcripts || []) : []
   return allTranscripts.slice(-limit) // Return last N messages
 }
+
+/**
+ * Sync profile fields from facts array
+ * Extracts values from facts and updates profile columns
+ */
+export async function syncProfileFieldsFromFacts(neonAuthId: string): Promise<void> {
+  const sql = getSql()
+
+  // Get user's facts
+  const users = await sql`
+    SELECT facts FROM users WHERE neon_auth_id = ${neonAuthId}
+  ` as Array<{ facts: UserFact[] }>
+
+  if (users.length === 0) return
+
+  const facts = users[0].facts || []
+
+  // Extract profile data from facts
+  const destinationFacts = facts.filter(f => f.fact_type === 'destination')
+  const destinations = destinationFacts.map(f => f.fact_value)
+
+  const originFact = facts.find(f => f.fact_type === 'origin')
+  const nationalityFact = facts.find(f => f.fact_type === 'nationality')
+  const timelineFact = facts.find(f => f.fact_type === 'timeline')
+
+  // Update profile fields
+  await sql`
+    UPDATE users
+    SET
+      destination_countries = CASE
+        WHEN ${destinations.length > 0}::boolean THEN ${destinations}
+        ELSE destination_countries
+      END,
+      current_country = CASE
+        WHEN ${!!originFact}::boolean THEN ${originFact?.fact_value}
+        ELSE current_country
+      END,
+      nationality = CASE
+        WHEN ${!!nationalityFact}::boolean THEN ${nationalityFact?.fact_value}
+        ELSE nationality
+      END,
+      timeline = CASE
+        WHEN ${!!timelineFact}::boolean THEN ${timelineFact?.fact_value}
+        ELSE timeline
+      END,
+      updated_at = NOW()
+    WHERE neon_auth_id = ${neonAuthId}
+  `
+
+  console.log(`✅ Synced profile fields from ${facts.length} facts`)
+}

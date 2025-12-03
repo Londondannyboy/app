@@ -11,7 +11,8 @@ import {
   addPendingConfirmation,
   storeMemory,
   syncUserProfile,
-  addTranscript
+  addTranscript,
+  syncProfileFieldsFromFacts
 } from '@/lib/api-clients'
 import type {
   ChatCompletionRequest,
@@ -424,6 +425,14 @@ async function extractAndStoreFacts(
     }
 
     console.log('✅ Fact extraction completed')
+
+    // Sync facts to profile fields (destination_countries, etc.)
+    try {
+      await syncProfileFieldsFromFacts(userId)
+      console.log('✅ Profile fields synced from facts')
+    } catch (profileError) {
+      console.error('❌ Profile sync error:', profileError)
+    }
 
     // Sync all user facts to ZEP for personalized context
     try {
