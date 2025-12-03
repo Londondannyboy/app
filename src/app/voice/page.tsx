@@ -6,6 +6,7 @@ import { UserFactsPanel } from '@/components/UserFactsPanel'
 import { ArticlesPanel } from '@/components/ArticlesPanel'
 import { ZepGraphPanel } from '@/components/ZepGraphPanel'
 import { LiveActivityPanel } from '@/components/LiveActivityPanel'
+import { HITLConfirmations } from '@/components/HITLConfirmations'
 
 export default function VoicePage() {
   const user = useUser()
@@ -38,6 +39,9 @@ export default function VoicePage() {
         )}
         <VoiceWidget userId={userId} />
       </div>
+
+      {/* HITL Floating Confirmations */}
+      <HITLConfirmations />
 
       {/* Sidebar with facts, graph, and articles */}
       <aside className="w-96 bg-black/20 border-l border-white/10 p-4 overflow-y-auto max-h-screen">

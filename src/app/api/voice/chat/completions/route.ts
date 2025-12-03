@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { neon } from '@neondatabase/serverless'
 import {
   generateResponse,
   searchKnowledgeGraph,
@@ -15,6 +16,8 @@ import type {
   UserFact,
   VoiceContext
 } from '@/lib/types'
+
+const sql = neon(process.env.DATABASE_URL!)
 
 // Natural bridge expressions for complex queries
 const BRIDGE_EXPRESSIONS = [
@@ -304,12 +307,15 @@ async function extractAndStoreFacts(
   // Simple regex patterns for fact extraction
   const patterns: Record<string, RegExp[]> = {
     destination: [
-      /(?:move|relocate|moving|going) to (\w+)/i,
+      /(?:move|relocate|moving|going|moving to|relocating to) (\w+)/i,
       /interested in (\w+)/i,
-      /looking at (\w+)/i
+      /looking at (\w+)/i,
+      /want to move to (\w+)/i,
+      /planning to move to (\w+)/i
     ],
     origin: [
-      /(?:from|currently in|live in|based in) (\w+)/i
+      /(?:from|currently in|live in|based in|living in|currently living in) (\w+)/i,
+      /I(?:'m| am) in (\w+)/i
     ],
     budget: [
       /budget (?:is |of )?([€$£]?[\d,]+(?:k)?(?:\s*(?:per|\/)\s*month)?)/i
@@ -320,7 +326,18 @@ async function extractAndStoreFacts(
   }
 
   const combinedText = `${query} ${response}`.toLowerCase()
-  const profileId = await getOrCreateProfile(userId)
+
+  // Get profile UUID
+  const profiles = await sql`
+    SELECT id FROM user_profiles WHERE user_id = ${userId}
+  ` as Array<{ id: string }>
+
+  if (profiles.length === 0) {
+    console.log('No user profile found for HITL')
+    return
+  }
+
+  const profileId = profiles[0].id
 
   for (const [factType, regexList] of Object.entries(patterns)) {
     for (const regex of regexList) {
@@ -336,24 +353,47 @@ async function extractAndStoreFacts(
         const isChange = existingFact && existingFact.fact_value !== value
         const requiresHITL = REQUIRES_HITL.includes(factType)
 
-        if (!existingFact) {
-          // New fact
-          if (requiresHITL) {
-            // Store with lower confidence - requires user confirmation
-            await storeFact(profileId, factType, { value }, 'voice', 0.5)
-            console.log(`⚠️ HITL: New ${factType} = ${value} (pending confirmation)`)
-          } else {
-            // Auto-approve non-critical facts
-            await storeFact(profileId, factType, { value }, 'voice', 0.8)
-            console.log(`✅ Stored fact: ${factType} = ${value}`)
-          }
+        if (!existingFact && requiresHITL) {
+          // New critical fact - requires HITL confirmation
+          await sql`
+            INSERT INTO user_fact_confirmations (
+              user_profile_id, fact_type, old_value, new_value,
+              source, confidence, status, user_message, ai_response,
+              created_at, updated_at
+            ) VALUES (
+              ${profileId}, ${factType}, NULL, ${JSON.stringify({ value })},
+              'voice', 0.5, 'pending', ${query}, ${response},
+              NOW(), NOW()
+            )
+          `
+          console.log(`⚠️ HITL: New ${factType} = ${value} (pending confirmation)`)
         } else if (isChange && requiresHITL) {
           // Changed fact - requires HITL confirmation
+          await sql`
+            INSERT INTO user_fact_confirmations (
+              user_profile_id, fact_type, old_value, new_value,
+              source, confidence, status, user_message, ai_response,
+              created_at, updated_at
+            ) VALUES (
+              ${profileId}, ${factType}, ${JSON.stringify({ value: existingFact.fact_value })},
+              ${JSON.stringify({ value })}, 'voice', 0.4, 'pending',
+              ${query}, ${response}, NOW(), NOW()
+            )
+          `
           console.log(`🔄 HITL: ${factType} changed from "${existingFact.fact_value}" to "${value}" (pending confirmation)`)
-
-          // Store as new fact with low confidence (user will see both options)
-          await storeFact(profileId, factType, { value, previous_value: existingFact.fact_value }, 'voice', 0.4)
-          console.log(`⚠️ Stored pending change - user needs to confirm`)
+        } else if (!existingFact && !requiresHITL) {
+          // Auto-approve non-critical facts
+          await sql`
+            INSERT INTO user_profile_facts (
+              user_profile_id, fact_type, fact_value,
+              source, confidence, is_user_verified,
+              is_active, created_at, updated_at
+            ) VALUES (
+              ${profileId}, ${factType}, ${JSON.stringify({ value })},
+              'voice', 0.8, false, true, NOW(), NOW()
+            )
+          `
+          console.log(`✅ Auto-stored fact: ${factType} = ${value}`)
         }
 
         break // Only match first pattern per fact type
