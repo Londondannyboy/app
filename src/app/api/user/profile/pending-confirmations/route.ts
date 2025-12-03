@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
-import { getOrCreateProfile } from '@/lib/api-clients'
-
-const sql = neon(process.env.DATABASE_URL!)
+import { getPendingConfirmations } from '@/lib/api-clients'
 
 /**
  * GET /api/user/profile/pending-confirmations
@@ -16,20 +13,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 401 })
     }
 
-    // Get user profile (create if doesn't exist)
-    const profileId = await getOrCreateProfile(userId)
-
-    // Get pending confirmations
-    const confirmations = await sql`
-      SELECT
-        id, fact_type, old_value, new_value,
-        source, confidence, user_message, ai_response,
-        created_at
-      FROM user_fact_confirmations
-      WHERE user_profile_id = ${profileId}
-      AND status = 'pending'
-      ORDER BY created_at DESC
-    `
+    // Get pending confirmations from user record
+    const confirmations = await getPendingConfirmations(userId)
 
     return NextResponse.json({ confirmations })
   } catch (error) {

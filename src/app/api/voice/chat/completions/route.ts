@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
-import { neon } from '@neondatabase/serverless'
 import {
   generateResponse,
   searchKnowledgeGraph,
   getUserFacts,
   getPersonalizedContext,
   searchArticles,
-  getOrCreateProfile,
-  storeFact,
+  getOrCreateUser,
+  addUserFact,
+  addPendingConfirmation,
   storeMemory
 } from '@/lib/api-clients'
 import type {
@@ -16,8 +16,6 @@ import type {
   UserFact,
   VoiceContext
 } from '@/lib/types'
-
-const sql = neon(process.env.DATABASE_URL!)
 
 // Natural bridge expressions for complex queries
 const BRIDGE_EXPRESSIONS = [
@@ -56,23 +54,14 @@ export async function POST(request: NextRequest) {
 
     console.log('Query:', userMessage.substring(0, 100))
 
-    // Get user's name from Stack Auth
-    let userName = ''
+    // Get or create user (auto-synced from Stack Auth)
+    let user = null
     if (userId && userId !== 'anonymous') {
-      try {
-        const userRows = await sql`
-          SELECT name FROM neon_auth.users_sync WHERE id = ${userId} LIMIT 1
-        ` as Array<{ name: string | null }>
-        if (userRows.length > 0 && userRows[0].name) {
-          userName = userRows[0].name.split(' ')[0] // First name only
-        }
-      } catch (err) {
-        console.error('Failed to fetch user name:', err)
-      }
+      user = await getOrCreateUser(userId)
     }
 
     // Build rich context from all sources
-    const context = await buildVoiceContext(userId || 'anonymous', userMessage)
+    const context = await buildVoiceContext(userId || 'anonymous', userMessage, user)
 
     // Check if complex query (needs thinking time)
     const isComplex =
@@ -99,11 +88,11 @@ export async function POST(request: NextRequest) {
           // Generate AI response
           const response = await generateResponse(
             userMessage,
-            formatContextForLLM(context, userName)
+            formatContextForLLM(context, user?.name || undefined)
           )
 
           // Extract and store facts in background (don't block response)
-          if (userId && userId !== 'anonymous') {
+          if (userId && userId !== 'anonymous' && user) {
             extractAndStoreFacts(userId, userMessage, response, context)
               .catch(err => console.error('Fact extraction error:', err))
 
@@ -191,35 +180,26 @@ function extractLatestUserMessage(messages: any[]): string | null {
  */
 async function buildVoiceContext(
   userId: string,
-  query: string
+  query: string,
+  user: any
 ): Promise<VoiceContext> {
   const context: VoiceContext = {}
 
-  // Get user's profile data (current_country, destination_countries, etc.)
-  let profileData: any = null
-  if (userId !== 'anonymous') {
-    try {
-      // Ensure user has a profile (creates if doesn't exist)
-      await getOrCreateProfile(userId)
-
-      const profiles = await sql`
-        SELECT current_country, destination_countries, nationality,
-               budget_monthly, timeline, relocation_motivation
-        FROM user_profiles
-        WHERE user_id = ${userId}
-        LIMIT 1
-      ` as Array<any>
-      if (profiles.length > 0) {
-        profileData = profiles[0]
-      }
-    } catch (err) {
-      console.error('Failed to fetch profile data:', err)
+  // Add user profile data if available
+  if (user) {
+    context.profile_data = {
+      current_country: user.current_country,
+      destination_countries: user.destination_countries || [],
+      nationality: user.nationality,
+      budget_monthly: user.budget_monthly,
+      timeline: user.timeline,
+      relocation_motivation: user.relocation_motivation || []
     }
   }
 
   // Parallel fetch all context sources
   const results = await Promise.allSettled([
-    // User profile facts (repo)
+    // User facts
     userId !== 'anonymous' ? getUserFacts(userId) : Promise.resolve([]),
 
     // Knowledge graph search (relocation graph)
@@ -250,11 +230,6 @@ async function buildVoiceContext(
     context.relevant_articles = results[3].value
   }
 
-  // Add profile data to context
-  if (profileData) {
-    context.profile_data = profileData
-  }
-
   return context
 }
 
@@ -266,10 +241,10 @@ function formatContextForLLM(context: VoiceContext, userName?: string): string {
 
   // Add personalized system instruction if we have the user's name
   if (userName) {
-    parts.push(`IMPORTANT: Address the user by their first name "${userName}" in your responses to make the conversation feel personal and warm.`)
+    parts.push(`IMPORTANT: Address the user by their first name "${userName.split(' ')[0]}" in your responses to make the conversation feel personal and warm.`)
   }
 
-  // User profile data from database
+  // User profile data
   if (context.profile_data) {
     const pd = context.profile_data
     const profileParts: string[] = []
@@ -292,10 +267,7 @@ function formatContextForLLM(context: VoiceContext, userName?: string): string {
   // User facts from conversations
   if (context.user_profile && context.user_profile.length > 0) {
     const facts = context.user_profile.map((f: UserFact) => {
-      const value = typeof f.fact_value === 'object'
-        ? f.fact_value.value
-        : f.fact_value
-      return `- ${f.fact_type}: ${value}`
+      return `- ${f.fact_type}: ${f.fact_value}`
     }).join('\n')
 
     parts.push(`CONVERSATION FACTS:\n${facts}`)
@@ -358,7 +330,7 @@ function createErrorResponse(message: string) {
  *
  * HITL Strategy:
  * - Critical changes (destination, origin, budget) require user confirmation
- * - These are stored with lower confidence (0.5) and marked for review
+ * - These are stored as pending confirmations
  * - User can confirm/reject via LiveActivityPanel in the UI
  * - Non-critical facts (timeline, minor preferences) are auto-approved
  */
@@ -398,18 +370,6 @@ async function extractAndStoreFacts(
 
   const combinedText = `${query} ${response}`.toLowerCase()
 
-  // Get profile UUID
-  const profiles = await sql`
-    SELECT id FROM user_profiles WHERE user_id = ${userId}
-  ` as Array<{ id: string }>
-
-  if (profiles.length === 0) {
-    console.log('No user profile found for HITL')
-    return
-  }
-
-  const profileId = profiles[0].id
-
   for (const [factType, regexList] of Object.entries(patterns)) {
     for (const regex of regexList) {
       const match = combinedText.match(regex)
@@ -426,44 +386,36 @@ async function extractAndStoreFacts(
 
         if (!existingFact && requiresHITL) {
           // New critical fact - requires HITL confirmation
-          await sql`
-            INSERT INTO user_fact_confirmations (
-              user_profile_id, fact_type, old_value, new_value,
-              source, confidence, status, user_message, ai_response,
-              created_at, updated_at
-            ) VALUES (
-              ${profileId}, ${factType}, NULL, ${JSON.stringify({ value })},
-              'voice', 0.5, 'pending', ${query}, ${response},
-              NOW(), NOW()
-            )
-          `
+          await addPendingConfirmation(userId, {
+            fact_type: factType,
+            old_value: null,
+            new_value: value,
+            source: 'voice',
+            confidence: 0.5,
+            user_message: query,
+            ai_response: response
+          })
           console.log(`⚠️ HITL: New ${factType} = ${value} (pending confirmation)`)
         } else if (isChange && requiresHITL) {
           // Changed fact - requires HITL confirmation
-          await sql`
-            INSERT INTO user_fact_confirmations (
-              user_profile_id, fact_type, old_value, new_value,
-              source, confidence, status, user_message, ai_response,
-              created_at, updated_at
-            ) VALUES (
-              ${profileId}, ${factType}, ${JSON.stringify({ value: existingFact.fact_value })},
-              ${JSON.stringify({ value })}, 'voice', 0.4, 'pending',
-              ${query}, ${response}, NOW(), NOW()
-            )
-          `
+          await addPendingConfirmation(userId, {
+            fact_type: factType,
+            old_value: existingFact.fact_value,
+            new_value: value,
+            source: 'voice',
+            confidence: 0.4,
+            user_message: query,
+            ai_response: response
+          })
           console.log(`🔄 HITL: ${factType} changed from "${existingFact.fact_value}" to "${value}" (pending confirmation)`)
         } else if (!existingFact && !requiresHITL) {
           // Auto-approve non-critical facts
-          await sql`
-            INSERT INTO user_profile_facts (
-              user_profile_id, fact_type, fact_value,
-              source, confidence, is_user_verified,
-              is_active, created_at, updated_at
-            ) VALUES (
-              ${profileId}, ${factType}, ${JSON.stringify({ value })},
-              'voice', 0.8, false, true, NOW(), NOW()
-            )
-          `
+          await addUserFact(userId, {
+            fact_type: factType,
+            fact_value: value,
+            source: 'voice',
+            confidence: 0.8
+          })
           console.log(`✅ Auto-stored fact: ${factType} = ${value}`)
         }
 
