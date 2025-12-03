@@ -2,25 +2,20 @@
 
 import { useUser, UserButton } from '@stackframe/stack'
 import { VoiceWidget } from '@/components/VoiceWidget'
-import { UserFactsPanel } from '@/components/UserFactsPanel'
-import { ArticlesPanel } from '@/components/ArticlesPanel'
-import { ZepGraphPanel } from '@/components/ZepGraphPanel'
-import { LiveActivityPanel } from '@/components/LiveActivityPanel'
-import { HITLConfirmations } from '@/components/HITLConfirmations'
+import { RepoSection } from '@/components/dashboard/RepoSection'
+import { ArticlesSection } from '@/components/dashboard/ArticlesSection'
+import { TranscriptSection } from '@/components/dashboard/TranscriptSection'
 
 export default function VoicePage() {
   const user = useUser()
   const userId = user?.id || null
 
   return (
-    <main className="flex min-h-screen">
+    <main className="flex min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
       {/* Header with auth */}
       <div className="absolute top-4 right-4 flex items-center gap-4 z-10">
         <a href="/" className="text-gray-400 hover:text-white transition">Home</a>
-        <a href="/chat" className="text-gray-400 hover:text-white transition">Chat</a>
-        {user && (
-          <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
-        )}
+        <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
         {user ? (
           <UserButton />
         ) : (
@@ -35,59 +30,55 @@ export default function VoicePage() {
 
       {/* Main voice interface */}
       <div className="flex-1 flex flex-col items-center justify-center p-8">
-        <h1 className="text-2xl font-bold mb-8">Voice Assistant</h1>
-        {user && (
-          <p className="text-gray-400 mb-4">Logged in as {user.displayName || user.primaryEmail}</p>
-        )}
-        <VoiceWidget userId={userId} />
+        <div className="max-w-2xl w-full">
+          <h1 className="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Relocation Assistant
+          </h1>
+          <p className="text-gray-400 mb-8 text-center">
+            Talk to your AI assistant about relocating
+          </p>
+
+          {user && (
+            <p className="text-gray-500 text-sm mb-4 text-center">
+              Welcome, {user.displayName || user.primaryEmail}
+            </p>
+          )}
+
+          <VoiceWidget userId={userId} />
+
+          {/* Transcripts below voice widget */}
+          {user && (
+            <div className="mt-8">
+              <TranscriptSection userId={userId} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* HITL Floating Confirmations */}
-      <HITLConfirmations />
+      {/* Sidebar with facts and articles */}
+      <aside className="w-96 bg-black/30 border-l border-white/10 p-4 overflow-y-auto max-h-screen">
+        {user ? (
+          <div className="space-y-6">
+            {/* User Facts / Repo */}
+            <RepoSection userId={userId} />
 
-      {/* Sidebar with facts, graph, and articles */}
-      <aside className="w-96 bg-black/20 border-l border-white/10 p-4 overflow-y-auto max-h-screen">
-        {/* Live Activity Panel - Shows HITL confirmations and agent actions */}
-        <div className="mb-6">
-          <LiveActivityPanel
-            userId={userId}
-            onConfirmChange={async (changeId, confirmed) => {
-              // Send confirmation to backend
-              try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_GATEWAY_URL}/dashboard/profile/confirm-change`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ change_id: changeId, confirmed, user_id: userId })
-                })
-                if (!res.ok) console.error('Failed to confirm change')
-              } catch (e) {
-                console.error('Error confirming change:', e)
-              }
-            }}
-          />
-        </div>
+            {/* Divider */}
+            <div className="border-t border-white/10" />
 
-        {/* User Facts */}
-        <div className="mb-6">
-          <UserFactsPanel userId={userId} />
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-white/10 my-6" />
-
-        {/* ZEP Knowledge Graph */}
-        <div className="mb-6">
-          <ZepGraphPanel userId={userId} />
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-white/10 my-6" />
-
-        {/* Articles */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Articles</h2>
-          <ArticlesPanel userId={userId} />
-        </div>
+            {/* Recommended Articles */}
+            <ArticlesSection userId={userId} />
+          </div>
+        ) : (
+          <div className="text-center text-gray-500 py-8">
+            <p className="mb-4">Sign in to see your personalized content</p>
+            <a
+              href="/handler/sign-in"
+              className="inline-block px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
+            >
+              Sign In
+            </a>
+          </div>
+        )}
       </aside>
     </main>
   )
