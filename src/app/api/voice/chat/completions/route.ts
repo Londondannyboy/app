@@ -222,6 +222,25 @@ async function buildVoiceContext(
 function formatContextForLLM(context: VoiceContext): string {
   const parts: string[] = []
 
+  // Extract user's first name from profile if available
+  let userName = ''
+  if (context.user_profile && context.user_profile.length > 0) {
+    const nameFact = context.user_profile.find(f =>
+      f.fact_type === 'name' || f.fact_type === 'first_name'
+    )
+    if (nameFact) {
+      const value = typeof nameFact.fact_value === 'object'
+        ? nameFact.fact_value.value
+        : nameFact.fact_value
+      userName = String(value).split(' ')[0] // Get first name only
+    }
+  }
+
+  // Add personalized system instruction
+  if (userName) {
+    parts.push(`IMPORTANT: Address the user by their first name "${userName}" in your responses to make the conversation feel personal and warm.`)
+  }
+
   // User profile
   if (context.user_profile && context.user_profile.length > 0) {
     const facts = context.user_profile.map((f: UserFact) => {
@@ -306,6 +325,10 @@ async function extractAndStoreFacts(
 
   // Simple regex patterns for fact extraction
   const patterns: Record<string, RegExp[]> = {
+    name: [
+      /(?:my name is|I'm|I am|this is|call me) ([\w]+)/i,
+      /(?:name'?s?) ([\w]+)/i
+    ],
     destination: [
       /(?:move|relocate|moving|going|moving to|relocating to) (\w+)/i,
       /interested in (\w+)/i,
@@ -329,7 +352,7 @@ async function extractAndStoreFacts(
 
   // Get profile UUID
   const profiles = await sql`
-    SELECT id FROM user_profiles WHERE user_id = ${userId}
+    SELECT id FROM user_profiles WHERE stack_user_id = ${userId}
   ` as Array<{ id: string }>
 
   if (profiles.length === 0) {

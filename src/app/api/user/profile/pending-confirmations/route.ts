@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     // Get user profile
     const profiles = await sql`
-      SELECT id FROM user_profiles WHERE user_id = ${userId}
+      SELECT id FROM user_profiles WHERE stack_user_id = ${userId}
     `
 
     if (profiles.length === 0) {
