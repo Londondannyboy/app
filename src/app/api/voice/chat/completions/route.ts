@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import {
   generateResponse,
+  extractFacts,
   searchKnowledgeGraph,
   getUserFacts,
   getPersonalizedContext,
@@ -327,13 +328,12 @@ function createErrorResponse(message: string) {
 }
 
 /**
- * Extract facts from conversation and store them (with HITL flow)
+ * Extract facts from conversation and store them using LLM (with HITL flow)
  *
  * HITL Strategy:
- * - Critical changes (destination, origin, budget) require user confirmation
- * - These are stored as pending confirmations
+ * - Facts marked as requires_confirmation go to pending_confirmations
  * - User can confirm/reject via LiveActivityPanel in the UI
- * - Non-critical facts (timeline, minor preferences) are auto-approved
+ * - Non-critical facts are auto-approved and added directly
  */
 async function extractAndStoreFacts(
   userId: string,
@@ -341,87 +341,67 @@ async function extractAndStoreFacts(
   response: string,
   context: VoiceContext
 ): Promise<void> {
-  // Fact types that require HITL confirmation
-  const REQUIRES_HITL = ['destination', 'origin', 'budget']
+  try {
+    console.log('🔍 Extracting facts from conversation...')
 
-  // Simple regex patterns for fact extraction
-  const patterns: Record<string, RegExp[]> = {
-    name: [
-      /(?:my name is|I'm|I am|this is|call me) ([\w]+)/i,
-      /(?:name'?s?) ([\w]+)/i
-    ],
-    destination: [
-      /(?:move|relocate|moving|going|moving to|relocating to) (\w+)/i,
-      /interested in (\w+)/i,
-      /looking at (\w+)/i,
-      /want to move to (\w+)/i,
-      /planning to move to (\w+)/i
-    ],
-    origin: [
-      /(?:from|currently in|live in|based in|living in|currently living in) (\w+)/i,
-      /I(?:'m| am) in (\w+)/i
-    ],
-    budget: [
-      /budget (?:is |of )?([€$£]?[\d,]+(?:k)?(?:\s*(?:per|\/)\s*month)?)/i
-    ],
-    timeline: [
-      /(?:within|in|by|next) ([\w\s]+(?:months?|years?|weeks?))/i
-    ]
-  }
+    // Get existing facts for context
+    const existingFacts = (context.user_profile || []).map(f => ({
+      fact_type: f.fact_type,
+      fact_value: f.fact_value
+    }))
 
-  const combinedText = `${query} ${response}`.toLowerCase()
+    // Use LLM to extract structured facts
+    const extractedFacts = await extractFacts(query, response, existingFacts)
 
-  for (const [factType, regexList] of Object.entries(patterns)) {
-    for (const regex of regexList) {
-      const match = combinedText.match(regex)
-      if (match && match[1]) {
-        const value = match[1].trim()
+    if (extractedFacts.length === 0) {
+      console.log('ℹ️ No new facts extracted from conversation')
+      return
+    }
 
-        // Get existing facts
-        const existingFacts = context.user_profile || []
-        const existingFact = existingFacts.find(f => f.fact_type === factType)
+    console.log(`📝 Processing ${extractedFacts.length} extracted facts:`)
 
-        // Check if this is a change to an existing fact (requires HITL)
-        const isChange = existingFact && existingFact.fact_value !== value
-        const requiresHITL = REQUIRES_HITL.includes(factType)
+    for (const fact of extractedFacts) {
+      const { fact_type, fact_value, confidence, requires_confirmation } = fact
 
-        if (!existingFact && requiresHITL) {
-          // New critical fact - requires HITL confirmation
-          await addPendingConfirmation(userId, {
-            fact_type: factType,
-            old_value: null,
-            new_value: value,
-            source: 'voice',
-            confidence: 0.5,
-            user_message: query,
-            ai_response: response
-          })
-          console.log(`⚠️ HITL: New ${factType} = ${value} (pending confirmation)`)
-        } else if (isChange && requiresHITL) {
-          // Changed fact - requires HITL confirmation
-          await addPendingConfirmation(userId, {
-            fact_type: factType,
-            old_value: existingFact.fact_value,
-            new_value: value,
-            source: 'voice',
-            confidence: 0.4,
-            user_message: query,
-            ai_response: response
-          })
-          console.log(`🔄 HITL: ${factType} changed from "${existingFact.fact_value}" to "${value}" (pending confirmation)`)
-        } else if (!existingFact && !requiresHITL) {
-          // Auto-approve non-critical facts
-          await addUserFact(userId, {
-            fact_type: factType,
-            fact_value: value,
-            source: 'voice',
-            confidence: 0.8
-          })
-          console.log(`✅ Auto-stored fact: ${factType} = ${value}`)
+      // Find existing fact of this type
+      const existingFact = existingFacts.find(f => f.fact_type === fact_type)
+      const isChange = existingFact && existingFact.fact_value !== fact_value
+
+      if (requires_confirmation || isChange) {
+        // Critical fact or changed value - requires HITL confirmation
+        await addPendingConfirmation(userId, {
+          fact_type,
+          old_value: existingFact?.fact_value || null,
+          new_value: fact_value,
+          source: 'voice',
+          confidence,
+          user_message: query,
+          ai_response: response
+        })
+
+        if (isChange) {
+          console.log(`🔄 HITL: ${fact_type} changed from "${existingFact.fact_value}" to "${fact_value}" (pending confirmation)`)
+        } else {
+          console.log(`⚠️ HITL: New ${fact_type} = ${fact_value} (pending confirmation, confidence: ${confidence})`)
         }
-
-        break // Only match first pattern per fact type
+      } else if (!existingFact) {
+        // New non-critical fact - auto-approve
+        await addUserFact(userId, {
+          fact_type,
+          fact_value,
+          source: 'voice',
+          confidence
+        })
+        console.log(`✅ Auto-stored fact: ${fact_type} = ${fact_value} (confidence: ${confidence})`)
+      } else {
+        console.log(`ℹ️ Skipped duplicate fact: ${fact_type} = ${fact_value}`)
       }
     }
+
+    console.log('✅ Fact extraction completed')
+
+  } catch (error) {
+    console.error('❌ Fact extraction error:', error)
+    // Don't throw - log error but don't block conversation
   }
 }
