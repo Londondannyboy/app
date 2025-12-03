@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useUser } from '@stackframe/stack'
+import { useState, useEffect } from 'react'
 
-interface Confirmation {
-  id: number
+interface PendingConfirmation {
+  id: string
   fact_type: string
-  old_value: { value?: string } | null
-  new_value: { value: string }
+  old_value: string | null
+  new_value: string
   source: string
   confidence: number
   user_message: string
@@ -15,126 +14,110 @@ interface Confirmation {
   created_at: string
 }
 
-export function HITLConfirmations() {
-  const user = useUser()
-  const [confirmations, setConfirmations] = useState<Confirmation[]>([])
+interface HITLConfirmationsProps {
+  userId: string | null
+}
+
+export function HITLConfirmations({ userId }: HITLConfirmationsProps) {
+  const [confirmations, setConfirmations] = useState<PendingConfirmation[]>([])
   const [loading, setLoading] = useState(true)
-  const [processing, setProcessing] = useState<number | null>(null)
+  const [processing, setProcessing] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user) return
+    if (!userId) return
 
-    async function fetchConfirmations() {
+    const fetchConfirmations = async () => {
       try {
-        const response = await fetch('/api/user/profile/pending-confirmations', {
-          headers: {
-            'x-user-id': user?.id || ''
-          }
+        const res = await fetch('/api/user/profile/pending-confirmations', {
+          headers: { 'X-User-Id': userId }
         })
-        const data = await response.json()
-        setConfirmations(data.confirmations || [])
+        if (res.ok) {
+          const data = await res.json()
+          setConfirmations(data.confirmations || [])
+        }
       } catch (error) {
-        console.error('Error fetching confirmations:', error)
+        console.error('Failed to fetch confirmations:', error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchConfirmations()
-
-    // Poll every 10 seconds for new confirmations
-    const interval = setInterval(fetchConfirmations, 10000)
+    const interval = setInterval(fetchConfirmations, 5000)
     return () => clearInterval(interval)
-  }, [user])
+  }, [userId])
 
-  async function handleAction(confirmationId: number, action: 'approve' | 'reject') {
-    if (!user || processing) return
-
+  const handleConfirm = async (confirmationId: string) => {
     setProcessing(confirmationId)
     try {
-      const response = await fetch('/api/user/profile/confirm-fact', {
+      const res = await fetch('/api/user/profile/confirm-fact', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user?.id || ''
-        },
-        body: JSON.stringify({ confirmationId, action })
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': userId || '' },
+        body: JSON.stringify({ confirmation_id: confirmationId, approved: true })
       })
-
-      if (response.ok) {
-        // Remove from list
-        setConfirmations(prev => prev.filter(c => c.id !== confirmationId))
-      } else {
-        console.error('Failed to process confirmation')
-      }
+      if (res.ok) setConfirmations(prev => prev.filter(c => c.id !== confirmationId))
     } catch (error) {
-      console.error('Error processing confirmation:', error)
+      console.error('Error confirming:', error)
     } finally {
       setProcessing(null)
     }
   }
 
-  if (!user || loading || confirmations.length === 0) {
-    return null
+  const handleReject = async (confirmationId: string) => {
+    setProcessing(confirmationId)
+    try {
+      const res = await fetch('/api/user/profile/confirm-fact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': userId || '' },
+        body: JSON.stringify({ confirmation_id: confirmationId, approved: false })
+      })
+      if (res.ok) setConfirmations(prev => prev.filter(c => c.id !== confirmationId))
+    } catch (error) {
+      console.error('Error rejecting:', error)
+    } finally {
+      setProcessing(null)
+    }
   }
 
+  if (!userId || confirmations.length === 0) return null
+
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-md space-y-2">
-      {confirmations.map((confirmation) => (
-        <div
-          key={confirmation.id}
-          className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 space-y-3"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-gray-900">
-                Confirm {confirmation.fact_type}
-              </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                From your conversation
-              </p>
+    <div className="fixed top-20 right-4 w-96 max-h-96 overflow-y-auto z-40 space-y-2">
+      {confirmations.map(confirmation => (
+        <div key={confirmation.id} className="bg-yellow-500/10 border-2 border-yellow-500/50 rounded-xl p-4 shadow-lg backdrop-blur-sm animate-pulse">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="font-medium text-white text-sm">Confirm Change</h3>
+                <p className="text-xs text-gray-400 capitalize">{confirmation.fact_type.replace('_', ' ')}</p>
+              </div>
             </div>
-            <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded">
-              Pending
+            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">
+              {Math.round(confirmation.confidence * 100)}% sure
             </span>
           </div>
-
-          <div className="space-y-2 text-sm">
-            {confirmation.old_value?.value && (
-              <div>
+          <div className="space-y-2 mb-3">
+            {confirmation.old_value && (
+              <div className="text-xs">
                 <span className="text-gray-500">Current: </span>
-                <span className="text-gray-700 line-through">
-                  {confirmation.old_value.value}
-                </span>
+                <span className="text-white line-through">{confirmation.old_value}</span>
               </div>
             )}
-            <div>
-              <span className="text-gray-500">
-                {confirmation.old_value ? 'New: ' : 'Detected: '}
-              </span>
-              <span className="text-gray-900 font-medium">
-                {confirmation.new_value.value}
-              </span>
+            <div className="text-xs">
+              <span className="text-gray-500">New: </span>
+              <span className="text-white font-medium">{confirmation.new_value}</span>
             </div>
           </div>
-
-          <div className="bg-gray-50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleAction(confirmation.id, 'approve')}
-                disabled={processing === confirmation.id}
-                className="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded transition-colors"
-              >
-                {processing === confirmation.id ? 'Processing...' : 'Confirm'}
-              </button>
-              <button
-                onClick={() => handleAction(confirmation.id, 'reject')}
-                disabled={processing === confirmation.id}
-                className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 rounded transition-colors"
-              >
-                Reject
-              </button>
-            </div>
+          <div className="flex gap-2">
+            <button onClick={() => handleConfirm(confirmation.id)} disabled={processing === confirmation.id}
+              className="flex-1 px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition text-sm font-medium disabled:opacity-50">
+              {processing === confirmation.id ? 'Confirming...' : '✓ Confirm'}
+            </button>
+            <button onClick={() => handleReject(confirmation.id)} disabled={processing === confirmation.id}
+              className="flex-1 px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition text-sm font-medium disabled:opacity-50">
+              {processing === confirmation.id ? 'Rejecting...' : '✗ Reject'}
+            </button>
           </div>
         </div>
       ))}

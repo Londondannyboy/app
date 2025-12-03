@@ -1,34 +1,25 @@
 'use client'
 
-import { useUser, UserButton } from '@stackframe/stack'
+import { useUser } from '@stackframe/stack'
 import { QuestChat } from '@/components/QuestChat'
 import { RepoSection } from '@/components/dashboard/RepoSection'
 import { ArticlesSection } from '@/components/dashboard/ArticlesSection'
 import { TranscriptSection } from '@/components/dashboard/TranscriptSection'
 import { DebugPanel } from '@/components/DebugPanel'
+import { HITLConfirmations } from '@/components/HITLConfirmations'
+import { GlobalHeader } from '@/components/GlobalHeader'
+import { GlobalFooter } from '@/components/GlobalFooter'
 
 export default function ChatPage() {
   const user = useUser()
   const userId = user?.id || null
 
   return (
-    <main className="flex min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
-      {/* Header with auth */}
-      <div className="absolute top-4 right-4 flex items-center gap-4 z-10">
-        <a href="/" className="text-gray-400 hover:text-white transition">Home</a>
-        <a href="/voice" className="text-gray-400 hover:text-white transition">Voice</a>
-        <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
-        {user ? (
-          <UserButton />
-        ) : (
-          <a
-            href="/handler/sign-in"
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition"
-          >
-            Sign In
-          </a>
-        )}
-      </div>
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
+      <GlobalHeader />
+      <HITLConfirmations userId={userId} />
+
+      <main className="flex flex-1">
 
       {/* Main chat interface */}
       <div className="flex-1 flex flex-col items-center p-8 pt-16">
@@ -85,8 +76,10 @@ export default function ChatPage() {
         )}
       </aside>
 
-      {/* Debug Panel */}
+      </main>
+
       <DebugPanel userId={userId} show={true} />
-    </main>
+      <GlobalFooter />
+    </div>
   )
 }
