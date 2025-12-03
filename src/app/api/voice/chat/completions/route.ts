@@ -9,7 +9,9 @@ import {
   getOrCreateUser,
   addUserFact,
   addPendingConfirmation,
-  storeMemory
+  storeMemory,
+  syncUserProfile,
+  addTranscript
 } from '@/lib/api-clients'
 import type {
   ChatCompletionRequest,
@@ -108,6 +110,24 @@ export async function POST(request: NextRequest) {
                 app: 'relocation'
               }
             ).catch(err => console.error('SuperMemory store error:', err))
+
+            // Store transcript messages
+            const timestamp = new Date().toISOString()
+            addTranscript(userId, {
+              id: `${Date.now()}-user`,
+              role: 'user',
+              content: userMessage,
+              timestamp,
+              source: 'voice'
+            }).catch(err => console.error('Transcript store error (user):', err))
+
+            addTranscript(userId, {
+              id: `${Date.now()}-assistant`,
+              role: 'assistant',
+              content: response,
+              timestamp,
+              source: 'voice'
+            }).catch(err => console.error('Transcript store error (assistant):', err))
           }
 
           // Stream response word-by-word for natural voice pacing
@@ -399,6 +419,18 @@ async function extractAndStoreFacts(
     }
 
     console.log('✅ Fact extraction completed')
+
+    // Sync all user facts to ZEP for personalized context
+    try {
+      const allUserFacts = await getUserFacts(userId)
+      if (allUserFacts.length > 0) {
+        await syncUserProfile(userId, allUserFacts)
+        console.log('✅ ZEP sync completed')
+      }
+    } catch (syncError) {
+      console.error('❌ ZEP sync error:', syncError)
+      // Don't throw - log but don't block conversation
+    }
 
   } catch (error) {
     console.error('❌ Fact extraction error:', error)

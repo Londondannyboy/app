@@ -300,3 +300,49 @@ export async function getArticlesByCountry(
 
   return rows
 }
+
+/**
+ * Add a transcript message to user's transcripts array
+ */
+export async function addTranscript(
+  neonAuthId: string,
+  message: {
+    id: string
+    role: 'user' | 'assistant'
+    content: string
+    timestamp: string
+    source: 'voice' | 'chat'
+  }
+): Promise<void> {
+  const sql = getSql()
+
+  await sql`
+    UPDATE users
+    SET
+      transcripts = transcripts || ${JSON.stringify(message)}::jsonb,
+      updated_at = NOW()
+    WHERE neon_auth_id = ${neonAuthId}
+  `
+}
+
+/**
+ * Get user's transcript messages
+ */
+export async function getTranscripts(
+  neonAuthId: string,
+  limit: number = 50
+): Promise<Array<{
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  source: 'voice' | 'chat'
+}>> {
+  const sql = getSql()
+  const users = await sql`
+    SELECT transcripts FROM users WHERE neon_auth_id = ${neonAuthId}
+  ` as Array<{ transcripts: any[] }>
+
+  const allTranscripts = users.length > 0 ? (users[0].transcripts || []) : []
+  return allTranscripts.slice(-limit) // Return last N messages
+}
