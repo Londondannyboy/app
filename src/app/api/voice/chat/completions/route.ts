@@ -6,7 +6,8 @@ import {
   getPersonalizedContext,
   searchArticles,
   getOrCreateProfile,
-  storeFact
+  storeFact,
+  storeMemory
 } from '@/lib/api-clients'
 import type {
   ChatCompletionRequest,
@@ -87,6 +88,17 @@ export async function POST(request: NextRequest) {
           if (userId && userId !== 'anonymous') {
             extractAndStoreFacts(userId, userMessage, response, context)
               .catch(err => console.error('Fact extraction error:', err))
+
+            // Store conversation in SuperMemory for future context
+            storeMemory(
+              userId,
+              `User: ${userMessage}\nAssistant: ${response}`,
+              {
+                timestamp: new Date().toISOString(),
+                source: 'voice',
+                app: 'relocation'
+              }
+            ).catch(err => console.error('SuperMemory store error:', err))
           }
 
           // Stream response word-by-word for natural voice pacing
@@ -273,6 +285,12 @@ function createErrorResponse(message: string) {
 
 /**
  * Extract facts from conversation and store them (with HITL flow)
+ *
+ * HITL Strategy:
+ * - Critical changes (destination, origin, budget) require user confirmation
+ * - These are stored with lower confidence (0.5) and marked for review
+ * - User can confirm/reject via LiveActivityPanel in the UI
+ * - Non-critical facts (timeline, minor preferences) are auto-approved
  */
 async function extractAndStoreFacts(
   userId: string,
@@ -280,6 +298,9 @@ async function extractAndStoreFacts(
   response: string,
   context: VoiceContext
 ): Promise<void> {
+  // Fact types that require HITL confirmation
+  const REQUIRES_HITL = ['destination', 'origin', 'budget']
+
   // Simple regex patterns for fact extraction
   const patterns: Record<string, RegExp[]> = {
     destination: [
@@ -311,10 +332,28 @@ async function extractAndStoreFacts(
         const existingFacts = context.user_profile || []
         const existingFact = existingFacts.find(f => f.fact_type === factType)
 
+        // Check if this is a change to an existing fact (requires HITL)
+        const isChange = existingFact && existingFact.fact_value !== value
+        const requiresHITL = REQUIRES_HITL.includes(factType)
+
         if (!existingFact) {
-          // New fact - store it
-          await storeFact(profileId, factType, { value }, 'voice', 0.7)
-          console.log(`✅ Stored fact: ${factType} = ${value}`)
+          // New fact
+          if (requiresHITL) {
+            // Store with lower confidence - requires user confirmation
+            await storeFact(profileId, factType, { value }, 'voice', 0.5)
+            console.log(`⚠️ HITL: New ${factType} = ${value} (pending confirmation)`)
+          } else {
+            // Auto-approve non-critical facts
+            await storeFact(profileId, factType, { value }, 'voice', 0.8)
+            console.log(`✅ Stored fact: ${factType} = ${value}`)
+          }
+        } else if (isChange && requiresHITL) {
+          // Changed fact - requires HITL confirmation
+          console.log(`🔄 HITL: ${factType} changed from "${existingFact.fact_value}" to "${value}" (pending confirmation)`)
+
+          // Store as new fact with low confidence (user will see both options)
+          await storeFact(profileId, factType, { value, previous_value: existingFact.fact_value }, 'voice', 0.4)
+          console.log(`⚠️ Stored pending change - user needs to confirm`)
         }
 
         break // Only match first pattern per fact type
