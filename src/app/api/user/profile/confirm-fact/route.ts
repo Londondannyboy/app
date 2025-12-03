@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
+import { getOrCreateProfile } from '@/lib/api-clients'
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -26,16 +27,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user profile
-    const profiles = await sql`
-      SELECT id FROM user_profiles WHERE user_id = ${userId}
-    `
-
-    if (profiles.length === 0) {
-      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
-    }
-
-    const profileId = profiles[0].id
+    // Get user profile (create if doesn't exist)
+    const profileId = await getOrCreateProfile(userId)
 
     // Get the confirmation
     const confirmations = await sql`

@@ -199,6 +199,9 @@ async function buildVoiceContext(
   let profileData: any = null
   if (userId !== 'anonymous') {
     try {
+      // Ensure user has a profile (creates if doesn't exist)
+      await getOrCreateProfile(userId)
+
       const profiles = await sql`
         SELECT current_country, destination_countries, nationality,
                budget_monthly, timeline, relocation_motivation
