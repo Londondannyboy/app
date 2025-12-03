@@ -118,8 +118,8 @@ export async function searchArticles(
   const sql = getSql()
   const rows = await sql`
     SELECT
-      id, title, slug, excerpt, content, country, country_name,
-      flag_emoji, article_mode, featured_asset_url, hero_asset_url,
+      id, title, slug, excerpt, content, country, country_code,
+      article_mode, featured_asset_url, hero_asset_url,
       video_playback_id, published_at, payload, video_narrative,
       app, status
     FROM articles
@@ -129,7 +129,7 @@ export async function searchArticles(
       title ILIKE ${'%' + query + '%'}
       OR excerpt ILIKE ${'%' + query + '%'}
       OR content ILIKE ${'%' + query + '%'}
-      OR country ILIKE ${'%' + query + '%'}
+      OR country_code ILIKE ${'%' + query + '%'}
     )
     ORDER BY published_at DESC
     LIMIT ${limit}

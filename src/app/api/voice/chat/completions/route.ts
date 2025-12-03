@@ -244,7 +244,7 @@ function formatContextForLLM(context: VoiceContext): string {
   // Relevant articles
   if (context.relevant_articles && context.relevant_articles.length > 0) {
     const articles = context.relevant_articles.map(a =>
-      `- ${a.title}${a.country_name ? ` (${a.country_name})` : ''}: ${a.excerpt?.substring(0, 100)}...`
+      `- ${a.title}${a.country_code ? ` (${a.country_code})` : ''}: ${a.excerpt?.substring(0, 100)}...`
     ).join('\n')
 
     parts.push(`RELEVANT ARTICLES:\n${articles}`)
