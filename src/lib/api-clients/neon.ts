@@ -42,16 +42,16 @@ export async function getOrCreateProfile(stackUserId: string): Promise<number> {
 /**
  * Get all active facts for a user (their "repo")
  */
-export async function getUserFacts(stackUserId: string): Promise<UserFact[]> {
+export async function getUserFacts(userId: string): Promise<UserFact[]> {
   const sql = getSql()
   const rows = await sql`
     SELECT
       f.id, f.user_profile_id, f.fact_type, f.fact_value,
       f.source, f.confidence, f.is_user_verified, f.is_active,
       f.created_at, f.updated_at
-    FROM user_facts f
+    FROM user_profile_facts f
     JOIN user_profiles p ON p.id = f.user_profile_id
-    WHERE p.stack_user_id = ${stackUserId}
+    WHERE p.user_id = ${userId}
     AND f.is_active = true
     ORDER BY f.updated_at DESC
   ` as UserFact[]
@@ -63,7 +63,7 @@ export async function getUserFacts(stackUserId: string): Promise<UserFact[]> {
  * Store a new fact from voice conversation
  */
 export async function storeFact(
-  profileId: number,
+  profileId: string,
   factType: string,
   factValue: any,
   source: string,
@@ -71,7 +71,7 @@ export async function storeFact(
 ): Promise<number> {
   const sql = getSql()
   const result = await sql`
-    INSERT INTO user_facts (
+    INSERT INTO user_profile_facts (
       user_profile_id, fact_type, fact_value,
       source, confidence, is_active,
       created_at, updated_at

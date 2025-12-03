@@ -195,13 +195,32 @@ async function buildVoiceContext(
 ): Promise<VoiceContext> {
   const context: VoiceContext = {}
 
+  // Get user's profile data (current_country, destination_countries, etc.)
+  let profileData: any = null
+  if (userId !== 'anonymous') {
+    try {
+      const profiles = await sql`
+        SELECT current_country, destination_countries, nationality,
+               budget_monthly, timeline, relocation_motivation
+        FROM user_profiles
+        WHERE user_id = ${userId}
+        LIMIT 1
+      ` as Array<any>
+      if (profiles.length > 0) {
+        profileData = profiles[0]
+      }
+    } catch (err) {
+      console.error('Failed to fetch profile data:', err)
+    }
+  }
+
   // Parallel fetch all context sources
   const results = await Promise.allSettled([
     // User profile facts (repo)
     userId !== 'anonymous' ? getUserFacts(userId) : Promise.resolve([]),
 
     // Knowledge graph search (relocation graph)
-    searchKnowledgeGraph(query, { graphId: 'relocation', scope: 'both', limit: 10 }),
+    searchKnowledgeGraph(query, { graphId: 'relocation', scope: 'edges', limit: 10 }),
 
     // SuperMemory personalization
     userId !== 'anonymous'
@@ -228,6 +247,11 @@ async function buildVoiceContext(
     context.relevant_articles = results[3].value
   }
 
+  // Add profile data to context
+  if (profileData) {
+    context.profile_data = profileData
+  }
+
   return context
 }
 
@@ -242,7 +266,27 @@ function formatContextForLLM(context: VoiceContext, userName?: string): string {
     parts.push(`IMPORTANT: Address the user by their first name "${userName}" in your responses to make the conversation feel personal and warm.`)
   }
 
-  // User profile
+  // User profile data from database
+  if (context.profile_data) {
+    const pd = context.profile_data
+    const profileParts: string[] = []
+    if (pd.current_country) profileParts.push(`- Current location: ${pd.current_country}`)
+    if (pd.destination_countries && pd.destination_countries.length > 0) {
+      profileParts.push(`- Interested in relocating to: ${pd.destination_countries.join(', ')}`)
+    }
+    if (pd.nationality) profileParts.push(`- Nationality: ${pd.nationality}`)
+    if (pd.budget_monthly) profileParts.push(`- Monthly budget: ${pd.budget_monthly}`)
+    if (pd.timeline) profileParts.push(`- Timeline: ${pd.timeline}`)
+    if (pd.relocation_motivation && pd.relocation_motivation.length > 0) {
+      profileParts.push(`- Motivation: ${pd.relocation_motivation.join(', ')}`)
+    }
+
+    if (profileParts.length > 0) {
+      parts.push(`USER PROFILE:\n${profileParts.join('\n')}`)
+    }
+  }
+
+  // User facts from conversations
   if (context.user_profile && context.user_profile.length > 0) {
     const facts = context.user_profile.map((f: UserFact) => {
       const value = typeof f.fact_value === 'object'
@@ -251,7 +295,7 @@ function formatContextForLLM(context: VoiceContext, userName?: string): string {
       return `- ${f.fact_type}: ${value}`
     }).join('\n')
 
-    parts.push(`USER PROFILE:\n${facts}`)
+    parts.push(`CONVERSATION FACTS:\n${facts}`)
   }
 
   // Knowledge graph

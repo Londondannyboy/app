@@ -41,6 +41,14 @@ export interface VoiceContext {
   knowledge_graph?: KnowledgeGraphContext
   personal_memory?: string
   relevant_articles?: Article[]
+  profile_data?: {
+    current_country?: string
+    destination_countries?: string[]
+    nationality?: string
+    budget_monthly?: number
+    timeline?: string
+    relocation_motivation?: string[]
+  }
 }
 
 export interface KnowledgeGraphContext {
