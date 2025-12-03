@@ -38,19 +38,13 @@ export async function GET() {
     `
     results.user_profiles_schema = profileColumns
 
-    // Check user_profiles data
-    const profiles = await sql`
-      SELECT * FROM user_profiles
+    // Check users table data
+    const users = await sql`
+      SELECT * FROM users
       ORDER BY created_at DESC
       LIMIT 10
     `
-    results.user_profiles_data = profiles
-
-    // Check user_profile_facts count
-    const factsCount = await sql`
-      SELECT COUNT(*) as count FROM user_profile_facts
-    `
-    results.facts_count = factsCount[0]?.count || 0
+    results.users_data = users
 
     // Check all tables in public schema
     const publicTables = await sql`
