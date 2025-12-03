@@ -60,6 +60,8 @@ export async function getUser(neonAuthId: string): Promise<User | null> {
 export async function updateUserProfile(
   neonAuthId: string,
   updates: {
+    first_name?: string
+    last_name?: string
     current_country?: string
     destination_countries?: string[]
     nationality?: string
@@ -73,6 +75,14 @@ export async function updateUserProfile(
   const setClauses: string[] = []
   const values: any[] = []
 
+  if (updates.first_name !== undefined) {
+    setClauses.push(`first_name = $${values.length + 1}`)
+    values.push(updates.first_name)
+  }
+  if (updates.last_name !== undefined) {
+    setClauses.push(`last_name = $${values.length + 1}`)
+    values.push(updates.last_name)
+  }
   if (updates.current_country !== undefined) {
     setClauses.push(`current_country = $${values.length + 1}`)
     values.push(updates.current_country)
