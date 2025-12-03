@@ -8,7 +8,7 @@ import { getUserFacts } from '@/lib/api-clients'
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-stack-user-id')
+    const userId = request.headers.get('x-user-id')
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 401 })
