@@ -5,6 +5,7 @@ import { VoiceWidget } from '@/components/VoiceWidget'
 import { RepoSection } from '@/components/dashboard/RepoSection'
 import { ArticlesSection } from '@/components/dashboard/ArticlesSection'
 import { TranscriptSection } from '@/components/dashboard/TranscriptSection'
+import { DebugPanel } from '@/components/DebugPanel'
 
 export default function VoicePage() {
   const user = useUser()
@@ -80,6 +81,9 @@ export default function VoicePage() {
           </div>
         )}
       </aside>
+
+      {/* Debug Panel - Shows real-time system events */}
+      <DebugPanel userId={userId} show={true} />
     </main>
   )
 }

@@ -39,6 +39,11 @@ export async function POST(request: NextRequest) {
   // 🔥 CRITICAL: Log immediately to verify Hume is calling us
   console.log('🔥 HUME CALLED /api/voice/chat/completions')
   console.log('Time:', new Date().toISOString())
+  console.log('ENV CHECK:', {
+    hasGemini: !!process.env.GEMINI_API_KEY,
+    hasZep: !!process.env.ZEP_API_KEY,
+    hasSupermemory: !!process.env.SUPERMEMORY_API_KEY
+  })
 
   try {
     const body: ChatCompletionRequest = await request.json()
