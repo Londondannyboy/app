@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless'
-import type { UserProfile, UserFact, Article } from '@/lib/types'
+import type { User, UserFact, PendingConfirmation, Article } from '@/lib/types'
 
 // Lazy initialization - only create connection when actually used
 let _sql: ReturnType<typeof neon> | null = null
@@ -8,102 +8,230 @@ function getSql() {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL environment variable is not set')
     }
-    // Configure to return arrays directly instead of FullQueryResults
     _sql = neon(process.env.DATABASE_URL, { fullResults: false })
   }
   return _sql
 }
 
 /**
- * Get or create user profile by Stack Auth user ID
+ * Get or create user by neon_auth_id (Stack Auth user ID)
+ * Returns the full user record
  */
-export async function getOrCreateProfile(userId: string): Promise<string> {
+export async function getOrCreateUser(neonAuthId: string): Promise<User> {
   const sql = getSql()
-  // Try to find existing profile
+
+  // Try to find existing user
   const existing = await sql`
-    SELECT id FROM user_profiles
-    WHERE user_id = ${userId}
-  ` as Array<{ id: string }>
+    SELECT * FROM users WHERE neon_auth_id = ${neonAuthId}
+  ` as User[]
 
   if (existing.length > 0) {
-    return existing[0].id
+    return existing[0]
   }
 
-  // Create new profile
-  const result = await sql`
-    INSERT INTO user_profiles (user_id, created_at, updated_at)
-    VALUES (${userId}, NOW(), NOW())
-    RETURNING id
-  ` as Array<{ id: string }>
+  // Create new user (will be synced from neon_auth.users_sync via trigger)
+  // But if trigger didn't fire, manually create
+  const created = await sql`
+    INSERT INTO users (neon_auth_id, email, name, created_at, updated_at)
+    SELECT id, email, name, created_at, NOW()
+    FROM neon_auth.users_sync
+    WHERE id = ${neonAuthId}
+    RETURNING *
+  ` as User[]
 
-  return result[0].id
+  return created[0]
 }
 
 /**
- * Get all active facts for a user (their "repo")
+ * Get user by neon_auth_id
  */
-export async function getUserFacts(userId: string): Promise<UserFact[]> {
+export async function getUser(neonAuthId: string): Promise<User | null> {
   const sql = getSql()
-  const rows = await sql`
-    SELECT
-      f.id, f.user_profile_id, f.fact_type, f.fact_value,
-      f.source, f.confidence, f.is_user_verified, f.is_active,
-      f.created_at, f.updated_at
-    FROM user_profile_facts f
-    JOIN user_profiles p ON p.id = f.user_profile_id
-    WHERE p.user_id = ${userId}
-    AND f.is_active = true
-    ORDER BY f.updated_at DESC
-  ` as UserFact[]
+  const users = await sql`
+    SELECT * FROM users WHERE neon_auth_id = ${neonAuthId}
+  ` as User[]
 
-  return rows
+  return users.length > 0 ? users[0] : null
 }
 
 /**
- * Store a new fact from voice conversation
+ * Update user profile fields
  */
-export async function storeFact(
-  profileId: string,
-  factType: string,
-  factValue: any,
-  source: string,
-  confidence: number
-): Promise<number> {
-  const sql = getSql()
-  const result = await sql`
-    INSERT INTO user_profile_facts (
-      user_profile_id, fact_type, fact_value,
-      source, confidence, is_active,
-      created_at, updated_at
-    )
-    VALUES (
-      ${profileId}, ${factType}, ${JSON.stringify(factValue)},
-      ${source}, ${confidence}, true,
-      NOW(), NOW()
-    )
-    RETURNING id
-  ` as Array<{ id: number }>
-
-  return result[0].id
-}
-
-/**
- * Update existing fact
- */
-export async function updateFact(
-  factId: number,
-  factValue: any,
-  source: string
+export async function updateUserProfile(
+  neonAuthId: string,
+  updates: {
+    current_country?: string
+    destination_countries?: string[]
+    nationality?: string
+    budget_monthly?: number
+    timeline?: string
+    relocation_motivation?: string[]
+  }
 ): Promise<void> {
   const sql = getSql()
+
+  const setClauses: string[] = []
+  const values: any[] = []
+
+  if (updates.current_country !== undefined) {
+    setClauses.push(`current_country = $${values.length + 1}`)
+    values.push(updates.current_country)
+  }
+  if (updates.destination_countries !== undefined) {
+    setClauses.push(`destination_countries = $${values.length + 1}`)
+    values.push(updates.destination_countries)
+  }
+  if (updates.nationality !== undefined) {
+    setClauses.push(`nationality = $${values.length + 1}`)
+    values.push(updates.nationality)
+  }
+  if (updates.budget_monthly !== undefined) {
+    setClauses.push(`budget_monthly = $${values.length + 1}`)
+    values.push(updates.budget_monthly)
+  }
+  if (updates.timeline !== undefined) {
+    setClauses.push(`timeline = $${values.length + 1}`)
+    values.push(updates.timeline)
+  }
+  if (updates.relocation_motivation !== undefined) {
+    setClauses.push(`relocation_motivation = $${values.length + 1}`)
+    values.push(updates.relocation_motivation)
+  }
+
+  if (setClauses.length === 0) return
+
+  values.push(neonAuthId)
+
   await sql`
-    UPDATE user_facts
+    UPDATE users
+    SET ${sql.unsafe(setClauses.join(', '))}, updated_at = NOW()
+    WHERE neon_auth_id = ${neonAuthId}
+  `
+}
+
+/**
+ * Add a fact to user's facts array
+ */
+export async function addUserFact(
+  neonAuthId: string,
+  fact: Omit<UserFact, 'extracted_at'>
+): Promise<void> {
+  const sql = getSql()
+
+  const factWithTime = {
+    ...fact,
+    extracted_at: new Date().toISOString()
+  }
+
+  await sql`
+    UPDATE users
     SET
-      fact_value = ${JSON.stringify(factValue)},
-      source = ${source},
+      facts = facts || ${JSON.stringify(factWithTime)}::jsonb,
       updated_at = NOW()
-    WHERE id = ${factId}
-  ` as any[]
+    WHERE neon_auth_id = ${neonAuthId}
+  `
+}
+
+/**
+ * Get user's facts
+ */
+export async function getUserFacts(neonAuthId: string): Promise<UserFact[]> {
+  const sql = getSql()
+  const users = await sql`
+    SELECT facts FROM users WHERE neon_auth_id = ${neonAuthId}
+  ` as Array<{ facts: UserFact[] }>
+
+  return users.length > 0 ? (users[0].facts || []) : []
+}
+
+/**
+ * Add a pending confirmation to user's pending_confirmations array
+ */
+export async function addPendingConfirmation(
+  neonAuthId: string,
+  confirmation: Omit<PendingConfirmation, 'id' | 'created_at'>
+): Promise<void> {
+  const sql = getSql()
+
+  const confirmationWithMeta = {
+    ...confirmation,
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString()
+  }
+
+  await sql`
+    UPDATE users
+    SET
+      pending_confirmations = pending_confirmations || ${JSON.stringify(confirmationWithMeta)}::jsonb,
+      updated_at = NOW()
+    WHERE neon_auth_id = ${neonAuthId}
+  `
+}
+
+/**
+ * Get user's pending confirmations
+ */
+export async function getPendingConfirmations(neonAuthId: string): Promise<PendingConfirmation[]> {
+  const sql = getSql()
+  const users = await sql`
+    SELECT pending_confirmations FROM users WHERE neon_auth_id = ${neonAuthId}
+  ` as Array<{ pending_confirmations: PendingConfirmation[] }>
+
+  return users.length > 0 ? (users[0].pending_confirmations || []) : []
+}
+
+/**
+ * Approve a pending confirmation - moves it to facts and removes from pending
+ */
+export async function approveConfirmation(
+  neonAuthId: string,
+  confirmationId: string
+): Promise<void> {
+  const sql = getSql()
+
+  // Get the user
+  const user = await getUser(neonAuthId)
+  if (!user) return
+
+  // Find the confirmation
+  const confirmation = user.pending_confirmations.find(c => c.id === confirmationId)
+  if (!confirmation) return
+
+  // Add as fact
+  await addUserFact(neonAuthId, {
+    fact_type: confirmation.fact_type,
+    fact_value: confirmation.new_value,
+    source: 'user_edit',
+    confidence: 1.0
+  })
+
+  // Remove from pending
+  const updatedPending = user.pending_confirmations.filter(c => c.id !== confirmationId)
+  await sql`
+    UPDATE users
+    SET pending_confirmations = ${JSON.stringify(updatedPending)}::jsonb, updated_at = NOW()
+    WHERE neon_auth_id = ${neonAuthId}
+  `
+}
+
+/**
+ * Reject a pending confirmation - just removes it
+ */
+export async function rejectConfirmation(
+  neonAuthId: string,
+  confirmationId: string
+): Promise<void> {
+  const sql = getSql()
+
+  const user = await getUser(neonAuthId)
+  if (!user) return
+
+  const updatedPending = user.pending_confirmations.filter(c => c.id !== confirmationId)
+  await sql`
+    UPDATE users
+    SET pending_confirmations = ${JSON.stringify(updatedPending)}::jsonb, updated_at = NOW()
+    WHERE neon_auth_id = ${neonAuthId}
+  `
 }
 
 /**

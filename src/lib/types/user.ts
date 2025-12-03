@@ -1,50 +1,39 @@
-export interface UserProfile {
+export interface User {
   id: string
-  stack_user_id: string
-  email?: string
-  display_name?: string
+  neon_auth_id: string
+  email: string
+  name: string | null
+  current_country: string | null
+  destination_countries: string[] | null
+  nationality: string | null
+  budget_monthly: number | null
+  timeline: string | null
+  relocation_motivation: string[] | null
+  facts: UserFact[]
+  pending_confirmations: PendingConfirmation[]
   created_at: string
   updated_at: string
 }
 
 export interface UserFact {
-  id: number
-  user_profile_id: number
-  fact_type: FactType
-  fact_value: FactValue | string  // Can be string for backward compat
-  source: FactSource
+  fact_type: string
+  fact_value: string
+  source: 'voice' | 'user_edit' | 'chat'
   confidence: number
-  is_user_verified: boolean
-  is_active: boolean
+  extracted_at: string
+}
+
+export interface PendingConfirmation {
+  id: string
+  fact_type: string
+  old_value: string | null
+  new_value: string
+  source: string
+  confidence: number
+  user_message: string
+  ai_response: string
   created_at: string
-  updated_at: string
 }
-
-export interface FactValue {
-  value: string
-  normalized?: string  // e.g., "USA" normalized to "United States"
-  metadata?: Record<string, any>
-}
-
-export type FactType =
-  | 'name'
-  | 'destination'
-  | 'origin'
-  | 'budget'
-  | 'timeline'
-  | 'family_size'
-  | 'work_type'
-  | 'visa_interest'
-  | 'nationality'
-  | 'profession'
-  | 'language'
-
-export type FactSource =
-  | 'voice'
-  | 'user_edit'
-  | 'user_verified'
-  | 'inferred'
-  | 'imported'
 
 // HITL (Human-in-the-Loop) event types
 export interface HITLEvent {
