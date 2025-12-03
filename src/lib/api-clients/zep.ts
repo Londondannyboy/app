@@ -31,14 +31,15 @@ export async function searchKnowledgeGraph(
   try {
     // Search edges (facts/relationships)
     const edgesResponse = await fetch(
-      `${ZEP_BASE_URL}/graph/${graphId}/search`,
+      `${ZEP_BASE_URL}/graph/search`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${ZEP_API_KEY}`,
+          'Authorization': `Api-Key ${ZEP_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          graph_id: graphId,
           query,
           scope: 'edges',
           limit
@@ -47,23 +48,25 @@ export async function searchKnowledgeGraph(
     )
 
     if (!edgesResponse.ok) {
-      throw new Error(`ZEP API error: ${edgesResponse.status}`)
+      const errorText = await edgesResponse.text()
+      throw new Error(`ZEP API error: ${edgesResponse.status} - ${errorText}`)
     }
 
     const edgesData = await edgesResponse.json()
 
     // Optionally search nodes (entities)
     let nodesData = { nodes: [] }
-    if (scope === 'nodes' || scope === 'both') {
+    if (scope === 'nodes') {
       const nodesResponse = await fetch(
-        `${ZEP_BASE_URL}/graph/${graphId}/search`,
+        `${ZEP_BASE_URL}/graph/search`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${ZEP_API_KEY}`,
+            'Authorization': `Api-Key ${ZEP_API_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            graph_id: graphId,
             query,
             scope: 'nodes',
             limit: Math.floor(limit / 2)
@@ -150,81 +153,47 @@ function formatForLLM(edges: any[], nodes: any[]): string {
 
 /**
  * Sync user facts to ZEP user graph (for personalization)
- * Creates/updates nodes and edges in a user-specific graph
+ * Uses user_id to automatically create/update user-specific graph
  */
 export async function syncUserProfile(
   userId: string,
   facts: Array<{ fact_type: string; fact_value: any }>
 ): Promise<{ success: boolean; error?: string }> {
-  const graphId = `user_${userId}`
-
   try {
-    // Add user node if it doesn't exist
-    const userNode = {
-      name: `User ${userId.slice(0, 8)}`,
-      type: 'User',
-      uuid: userId,
-      attributes: {
-        user_id: userId,
-        created_at: new Date().toISOString()
-      }
-    }
+    console.log(`Syncing ${facts.length} facts to ZEP for user ${userId}`)
 
-    await fetch(`${ZEP_BASE_URL}/graph/${graphId}/nodes`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ZEP_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ nodes: [userNode] })
-    })
-
-    // Add fact nodes and edges
-    const factNodes = facts.map(fact => {
+    // Add fact triplets to user's graph
+    // ZEP automatically creates user-specific graph when using user_id
+    for (const fact of facts) {
       const value = typeof fact.fact_value === 'object'
         ? fact.fact_value.value
         : fact.fact_value
 
-      return {
-        name: String(value),
-        type: fact.fact_type.charAt(0).toUpperCase() + fact.fact_type.slice(1),
-        uuid: `${userId}_${fact.fact_type}`,
-        attributes: {
-          fact_type: fact.fact_type,
-          value: String(value)
+      const factText = `User has ${fact.fact_type}: ${value}`
+
+      try {
+        const response = await fetch(`${ZEP_BASE_URL}/graph/add`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Api-Key ${ZEP_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            data: factText
+          })
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`Failed to add fact: ${errorText}`)
         }
+      } catch (err) {
+        console.error(`Error adding fact ${fact.fact_type}:`, err)
       }
-    })
-
-    if (factNodes.length > 0) {
-      await fetch(`${ZEP_BASE_URL}/graph/${graphId}/nodes`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ZEP_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nodes: factNodes })
-      })
-
-      // Create edges connecting user to facts
-      const edges = factNodes.map(node => ({
-        source: userId,
-        target: node.uuid,
-        fact: `User has ${node.attributes.fact_type}: ${node.attributes.value}`,
-        name: `HAS_${node.type.toUpperCase()}`
-      }))
-
-      await fetch(`${ZEP_BASE_URL}/graph/${graphId}/edges`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ZEP_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ edges })
-      })
     }
 
-    console.log(`✅ Synced ${facts.length} facts to ZEP graph ${graphId}`)
+    console.log(`✅ Synced ${facts.length} facts to ZEP for user ${userId}`)
     return { success: true }
   } catch (error) {
     console.error('ZEP sync error:', error)

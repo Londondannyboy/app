@@ -21,29 +21,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Determine graph ID based on type
-    const graphId = graphType === 'relocation'
-      ? 'relocation'  // General relocation knowledge
-      : `user_${userId}`  // User-specific graph
-
-    console.log(`Fetching ZEP graph: ${graphId} (type: ${graphType})`)
+    console.log(`Fetching ZEP graph: type=${graphType}, userId=${userId}`)
 
     // Search knowledge graph
+    // For user graphs, ZEP uses user_id directly (not a custom graph_id)
     const graphContext = await searchKnowledgeGraph('*', {
-      graphId,
-      scope: 'both',
+      graphId: graphType === 'relocation' ? 'relocation' : userId,
+      scope: 'edges',
       limit: 50
     })
 
     // Add debug info
-    console.log(`ZEP graph results for ${graphId}:`, {
+    const displayId = graphType === 'relocation' ? 'relocation' : `user:${userId}`
+    console.log(`ZEP graph results for ${displayId}:`, {
       nodes: graphContext.nodes.length,
       edges: graphContext.edges.length
     })
 
     return NextResponse.json({
       success: true,
-      graphId,
+      graphId: displayId,
       graphType,
       nodes: graphContext.nodes,
       edges: graphContext.edges
