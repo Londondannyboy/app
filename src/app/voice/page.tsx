@@ -16,9 +16,11 @@ export default function VoicePage() {
     <main className="flex min-h-screen">
       {/* Header with auth */}
       <div className="absolute top-4 right-4 flex items-center gap-4 z-10">
-        <a href="/" className="text-gray-400 hover:text-white transition">← Home</a>
+        <a href="/" className="text-gray-400 hover:text-white transition">Home</a>
         <a href="/chat" className="text-gray-400 hover:text-white transition">Chat</a>
-        <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
+        {user && (
+          <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
+        )}
         {user ? (
           <UserButton />
         ) : (

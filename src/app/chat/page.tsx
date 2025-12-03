@@ -75,9 +75,11 @@ export default function ChatPage() {
     <main className="flex min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
       {/* Header with auth */}
       <div className="absolute top-4 right-4 flex items-center gap-4 z-10">
-        <a href="/" className="text-gray-400 hover:text-white transition">← Home</a>
+        <a href="/" className="text-gray-400 hover:text-white transition">Home</a>
         <a href="/voice" className="text-gray-400 hover:text-white transition">Voice</a>
-        <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
+        {user && (
+          <a href="/dashboard" className="text-gray-400 hover:text-white transition">Dashboard</a>
+        )}
         {user ? (
           <UserButton />
         ) : (
