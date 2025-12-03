@@ -17,13 +17,13 @@ function getSql() {
 /**
  * Get or create user profile by Stack Auth user ID
  */
-export async function getOrCreateProfile(stackUserId: string): Promise<number> {
+export async function getOrCreateProfile(userId: string): Promise<string> {
   const sql = getSql()
   // Try to find existing profile
   const existing = await sql`
     SELECT id FROM user_profiles
-    WHERE stack_user_id = ${stackUserId}
-  ` as Array<{ id: number }>
+    WHERE user_id = ${userId}
+  ` as Array<{ id: string }>
 
   if (existing.length > 0) {
     return existing[0].id
@@ -31,10 +31,10 @@ export async function getOrCreateProfile(stackUserId: string): Promise<number> {
 
   // Create new profile
   const result = await sql`
-    INSERT INTO user_profiles (stack_user_id, created_at, updated_at)
-    VALUES (${stackUserId}, NOW(), NOW())
+    INSERT INTO user_profiles (user_id, created_at, updated_at)
+    VALUES (${userId}, NOW(), NOW())
     RETURNING id
-  ` as Array<{ id: number }>
+  ` as Array<{ id: string }>
 
   return result[0].id
 }
