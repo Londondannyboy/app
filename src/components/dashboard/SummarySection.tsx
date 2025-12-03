@@ -62,7 +62,7 @@ export function SummarySection({ userId }: SummarySectionProps) {
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/summaries/recent`,
-          { headers: { 'X-Stack-User-Id': userId } }
+          { headers: { 'X-User-Id': userId } }
         )
         if (res.ok) {
           const data = await res.json()
@@ -87,7 +87,7 @@ export function SummarySection({ userId }: SummarySectionProps) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Stack-User-Id': userId,
+            'X-User-Id': userId,
           },
         }
       )

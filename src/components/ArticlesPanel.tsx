@@ -74,7 +74,7 @@ export function ArticlesPanel({ userId }: ArticlesPanelProps) {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_GATEWAY_URL}/content/recent?limit=4`,
           {
-            headers: userId ? { 'X-Stack-User-Id': userId } : {},
+            headers: userId ? { 'X-User-Id': userId } : {},
           }
         )
         if (res.ok) {

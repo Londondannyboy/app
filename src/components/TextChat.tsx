@@ -65,7 +65,7 @@ export function TextChat({
         headers: {
           'Content-Type': 'application/json',
           'X-App-Id': appId,
-          ...(userId && { 'X-Stack-User-Id': userId }),
+          ...(userId && { 'X-User-Id': userId }),
         },
         body: JSON.stringify({
           messages: [...messages, userMessage].map(m => ({

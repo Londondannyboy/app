@@ -34,7 +34,7 @@ export async function searchZepViaGateway(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(userId && { 'X-Stack-User-Id': userId }),
+          ...(userId && { 'X-User-Id': userId }),
         },
         body: JSON.stringify({ query }),
       }
@@ -57,7 +57,7 @@ export async function getUserFactsViaGateway(userId: string) {
       `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/facts`,
       {
         headers: {
-          'X-Stack-User-Id': userId,
+          'X-User-Id': userId,
         },
       }
     )

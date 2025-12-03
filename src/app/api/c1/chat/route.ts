@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, threadId } = await req.json()
     const appId = req.headers.get('X-App-Id') || 'relocation'
-    const userId = req.headers.get('X-Stack-User-Id')
+    const userId = req.headers.get('X-User-Id')
 
     // Build system prompt with app context
     const appContext = {

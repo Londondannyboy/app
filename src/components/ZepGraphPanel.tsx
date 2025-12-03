@@ -69,7 +69,7 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
         `/api/user/profile/zep-graph?user_id=${userId}&graph_type=${graphType}`,
         {
           headers: {
-            'X-Stack-User-Id': userId,
+            'X-User-Id': userId,
           },
         }
       )
@@ -105,7 +105,7 @@ export function ZepGraphPanel({ userId }: ZepGraphPanelProps) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Stack-User-Id': userId,
+            'X-User-Id': userId,
           },
           body: JSON.stringify({ user_id: userId }),
         }

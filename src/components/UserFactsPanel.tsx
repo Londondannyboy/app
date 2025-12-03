@@ -151,7 +151,7 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
           `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/facts`,
           {
             headers: {
-              'X-Stack-User-Id': userId,
+              'X-User-Id': userId,
             },
           }
         )
@@ -195,7 +195,7 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Stack-User-Id': userId,
+            'X-User-Id': userId,
           },
           body: JSON.stringify(payload),
         }
@@ -250,7 +250,7 @@ export function UserFactsPanel({ userId }: UserFactsPanelProps) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Stack-User-Id': userId,
+            'X-User-Id': userId,
           },
           body: JSON.stringify({
             fact_id: existingFact?.id || '',

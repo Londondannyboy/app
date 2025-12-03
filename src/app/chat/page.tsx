@@ -62,7 +62,7 @@ export default function ChatPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Stack-User-Id': userId || '',
+          'X-User-Id': userId || '',
         },
         body: JSON.stringify({ change_id: changeId, confirmed }),
       })

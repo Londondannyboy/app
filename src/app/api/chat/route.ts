@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
     // Get context from headers
     const appId = req.headers.get('X-App-Id') || 'relocation'
-    const userId = req.headers.get('X-Stack-User-Id')
+    const userId = req.headers.get('X-User-Id')
 
     // Build system message with app context
     const systemMessage = appId === 'relocation'

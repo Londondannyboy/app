@@ -97,7 +97,7 @@ export function ArticlesSection({ userId }: ArticlesSectionProps) {
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_GATEWAY_URL}/content/recommendations`,
-          { headers: { 'X-Stack-User-Id': userId } }
+          { headers: { 'X-User-Id': userId } }
         )
         if (res.ok) {
           const data = await res.json()
