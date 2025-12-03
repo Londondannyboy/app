@@ -56,6 +56,21 @@ export async function POST(request: NextRequest) {
 
     console.log('Query:', userMessage.substring(0, 100))
 
+    // Get user's name from Stack Auth
+    let userName = ''
+    if (userId && userId !== 'anonymous') {
+      try {
+        const userRows = await sql`
+          SELECT name FROM neon_auth.users_sync WHERE id = ${userId} LIMIT 1
+        ` as Array<{ name: string | null }>
+        if (userRows.length > 0 && userRows[0].name) {
+          userName = userRows[0].name.split(' ')[0] // First name only
+        }
+      } catch (err) {
+        console.error('Failed to fetch user name:', err)
+      }
+    }
+
     // Build rich context from all sources
     const context = await buildVoiceContext(userId || 'anonymous', userMessage)
 
@@ -84,7 +99,7 @@ export async function POST(request: NextRequest) {
           // Generate AI response
           const response = await generateResponse(
             userMessage,
-            formatContextForLLM(context)
+            formatContextForLLM(context, userName)
           )
 
           // Extract and store facts in background (don't block response)
@@ -219,24 +234,10 @@ async function buildVoiceContext(
 /**
  * Format context for LLM prompt
  */
-function formatContextForLLM(context: VoiceContext): string {
+function formatContextForLLM(context: VoiceContext, userName?: string): string {
   const parts: string[] = []
 
-  // Extract user's first name from profile if available
-  let userName = ''
-  if (context.user_profile && context.user_profile.length > 0) {
-    const nameFact = context.user_profile.find(f =>
-      f.fact_type === 'name'
-    )
-    if (nameFact) {
-      const value = typeof nameFact.fact_value === 'object'
-        ? nameFact.fact_value.value
-        : nameFact.fact_value
-      userName = String(value).split(' ')[0] // Get first name only
-    }
-  }
-
-  // Add personalized system instruction
+  // Add personalized system instruction if we have the user's name
   if (userName) {
     parts.push(`IMPORTANT: Address the user by their first name "${userName}" in your responses to make the conversation feel personal and warm.`)
   }
@@ -352,7 +353,7 @@ async function extractAndStoreFacts(
 
   // Get profile UUID
   const profiles = await sql`
-    SELECT id FROM user_profiles WHERE stack_user_id = ${userId}
+    SELECT id FROM user_profiles WHERE user_id = ${userId}
   ` as Array<{ id: string }>
 
   if (profiles.length === 0) {
