@@ -49,7 +49,7 @@ export interface HITLEvent {
 }
 
 export interface ProfileSuggestion {
-  fact_type: FactType
+  fact_type: string
   current_value?: string
   suggested_value: string
   confidence: number
@@ -65,7 +65,7 @@ export interface ArticleRecommendation {
 
 export interface FactCorrection {
   fact_id: number
-  fact_type: FactType
+  fact_type: string
   incorrect_value: string
   corrected_value: string
 }
