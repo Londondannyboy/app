@@ -2,29 +2,36 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserFacts } from '@/lib/api-clients'
 
 /**
- * GET /api/user/profile/facts?user_id=xxx
+ * GET /api/user/profile/facts
  *
- * Returns all active facts for a user (their "repo")
+ * Get user's facts from users.facts JSONB array
  */
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('user_id')
+    const userId = request.headers.get('x-stack-user-id')
 
     if (!userId) {
-      return NextResponse.json(
-        { error: 'user_id is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID required' }, { status: 401 })
     }
 
     const facts = await getUserFacts(userId)
 
-    return NextResponse.json({ facts })
+    return NextResponse.json({
+      success: true,
+      facts: facts.map((fact, index) => ({
+        id: index,
+        fact_type: fact.fact_type,
+        fact_value: fact.fact_value,
+        source: fact.source,
+        confidence: fact.confidence,
+        is_active: true,
+        updated_at: fact.extracted_at
+      }))
+    })
   } catch (error) {
-    console.error('Error fetching user facts:', error)
+    console.error('Error fetching facts:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch user facts' },
+      { error: 'Failed to fetch facts' },
       { status: 500 }
     )
   }
