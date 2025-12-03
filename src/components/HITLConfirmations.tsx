@@ -28,7 +28,7 @@ export function HITLConfirmations() {
       try {
         const response = await fetch('/api/user/profile/pending-confirmations', {
           headers: {
-            'x-user-id': user.id
+            'x-user-id': user?.id || ''
           }
         })
         const data = await response.json()
@@ -56,7 +56,7 @@ export function HITLConfirmations() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id
+          'x-user-id': user?.id || ''
         },
         body: JSON.stringify({ confirmationId, action })
       })
