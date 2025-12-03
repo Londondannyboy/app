@@ -147,7 +147,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
     const fetchRepo = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_GATEWAY_URL}/user/profile/facts`,
+          `/api/user/profile/facts`,
           { headers: { 'X-Stack-User-Id': userId } }
         )
         if (res.ok) {
