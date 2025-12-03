@@ -86,9 +86,10 @@ export async function POST(request: NextRequest) {
           }
 
           // Generate AI response
+          const userName = user?.first_name || undefined
           const response = await generateResponse(
             userMessage,
-            formatContextForLLM(context, user?.name || undefined)
+            formatContextForLLM(context, userName)
           )
 
           // Extract and store facts in background (don't block response)

@@ -2,7 +2,8 @@ export interface User {
   id: string
   neon_auth_id: string
   email: string
-  name: string | null
+  first_name: string | null
+  last_name: string | null
   current_country: string | null
   destination_countries: string[] | null
   nationality: string | null
