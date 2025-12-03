@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 
+// Force fresh build after monorepo flattening
 const nextConfig: NextConfig = {
   // Enable React strict mode
   reactStrictMode: true,
