@@ -20,6 +20,68 @@ interface HumeVoiceUIProps {
   onConnectionChange?: (isConnected: boolean) => void
 }
 
+// Tool call handler - calls our API endpoints when Hume requests a tool
+async function handleToolCall(
+  toolCall: any,
+  send: {
+    success: (content: unknown) => any
+    error: (e: { error: string; code: string; level: string; content: string }) => any
+  },
+  userId: string | null
+): Promise<any> {
+  const toolName = toolCall.name
+  const parameters = toolCall.parameters ? JSON.parse(toolCall.parameters) : {}
+
+  console.log(`🔧 Tool call received: ${toolName}`, { parameters, userId })
+
+  try {
+    let apiUrl: string
+    let body: Record<string, any> = { custom_session_id: userId }
+
+    switch (toolName) {
+      case 'get_user_profile':
+        apiUrl = getApiUrl('/hume/tools/get-user-profile')
+        break
+      case 'search_knowledge':
+        apiUrl = getApiUrl('/hume/tools/search-knowledge')
+        body.parameters = parameters
+        break
+      case 'search_articles':
+        apiUrl = getApiUrl('/hume/tools/search-articles')
+        body.parameters = parameters
+        break
+      default:
+        console.warn(`Unknown tool: ${toolName}`)
+        return send.error({
+          error: 'Unknown tool',
+          code: 'unknown_tool',
+          level: 'warn',
+          content: `Tool "${toolName}" is not recognized.`
+        })
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+
+    const result = await response.json()
+    console.log(`✅ Tool response for ${toolName}:`, result.content?.substring(0, 100))
+
+    return send.success(result.content || 'No content returned')
+
+  } catch (error) {
+    console.error(`Tool call error for ${toolName}:`, error)
+    return send.error({
+      error: 'Tool execution failed',
+      code: 'execution_error',
+      level: 'error',
+      content: `Failed to execute tool "${toolName}". Please try again.`
+    })
+  }
+}
+
 function VoiceControls({
   accessToken,
   configId,
@@ -88,11 +150,12 @@ function VoiceControls({
         }
 
         // Inject user context as variables for system prompt personalization
+        // Variable names MUST match exactly what's in the Hume system prompt
         if (userContext) {
           sessionSettings.variables = {
-            user_name: userContext.name || 'friend',
+            first_name: userContext.name || 'friend',
             current_country: userContext.current_country || 'unknown',
-            destinations: userContext.destination_countries?.join(', ') || 'not specified',
+            destination_countries: userContext.destination_countries?.join(', ') || 'not specified',
             nationality: userContext.nationality || 'not specified',
             timeline: userContext.timeline || 'not specified',
           }
@@ -202,8 +265,16 @@ function VoiceControls({
 }
 
 export default function HumeVoiceUI(props: HumeVoiceUIProps) {
+  // Create tool handler with userId in closure
+  const onToolCall = useCallback(
+    async (toolCall: any, send: any) => {
+      return handleToolCall(toolCall, send, props.userId)
+    },
+    [props.userId]
+  )
+
   return (
-    <VoiceProvider>
+    <VoiceProvider onToolCall={onToolCall}>
       <VoiceControls {...props} />
     </VoiceProvider>
   )
