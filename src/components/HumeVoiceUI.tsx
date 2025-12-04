@@ -89,8 +89,9 @@ function VoiceControls({
   userContext,
   onConnectionChange,
 }: HumeVoiceUIProps) {
-  const { connect, disconnect, status, isMuted, mute, unmute, messages } = useVoice()
+  const { connect, disconnect, status, isMuted, mute, unmute, messages, sendSessionSettings } = useVoice()
   const savedMessagesRef = useRef<Set<string>>(new Set())
+  const hasSetVariables = useRef(false)
 
   const isConnected = status.value === 'connected'
   const isConnecting = status.value === 'connecting'
@@ -98,6 +99,32 @@ function VoiceControls({
   useEffect(() => {
     onConnectionChange?.(isConnected)
   }, [isConnected, onConnectionChange])
+
+  // Send session variables after connection is established
+  useEffect(() => {
+    if (isConnected && userContext && !hasSetVariables.current) {
+      hasSetVariables.current = true
+
+      const variables: Record<string, string> = {
+        first_name: userContext.name || 'friend',
+        current_country: userContext.current_country || 'unknown',
+        destination_countries: userContext.destination_countries?.join(', ') || 'not specified',
+        nationality: userContext.nationality || 'not specified',
+        timeline: userContext.timeline || 'not specified',
+      }
+
+      console.log('📤 Sending session variables:', variables)
+
+      sendSessionSettings({
+        variables,
+      })
+    }
+
+    // Reset flag when disconnected
+    if (!isConnected) {
+      hasSetVariables.current = false
+    }
+  }, [isConnected, userContext, sendSessionSettings])
 
   // Save transcripts to database
   const saveTranscripts = useCallback(async () => {
@@ -250,16 +277,16 @@ function VoiceControls({
 }
 
 export default function HumeVoiceUI(props: HumeVoiceUIProps) {
-  // Tool handler temporarily disabled to debug connection issue
-  // const onToolCall = useCallback(
-  //   async (toolCall: any, send: any) => {
-  //     return handleToolCall(toolCall, send, props.userId)
-  //   },
-  //   [props.userId]
-  // )
+  // Handle tool calls from Hume - bridges WebSocket to our REST APIs
+  const onToolCall = useCallback(
+    async (toolCall: any, send: any) => {
+      return handleToolCall(toolCall, send, props.userId)
+    },
+    [props.userId]
+  )
 
   return (
-    <VoiceProvider>
+    <VoiceProvider onToolCall={onToolCall}>
       <VoiceControls {...props} />
     </VoiceProvider>
   )
