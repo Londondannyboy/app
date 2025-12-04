@@ -89,9 +89,8 @@ function VoiceControls({
   userContext,
   onConnectionChange,
 }: HumeVoiceUIProps) {
-  const { connect, disconnect, readyState, isMuted, mute, unmute, messages, sendSessionSettings } = useVoice()
+  const { connect, disconnect, readyState, isMuted, mute, unmute, messages } = useVoice()
   const savedMessagesRef = useRef<Set<string>>(new Set())
-  const hasSetVariables = useRef(false)
 
   const isConnected = readyState === VoiceReadyState.OPEN
   const isConnecting = readyState === VoiceReadyState.CONNECTING
@@ -148,7 +147,7 @@ function VoiceControls({
     } else if (!isConnecting) {
       // Only connect if not already connecting
       try {
-        // Build variables for system prompt - must be passed at connect time
+        // Build session settings with variables for system prompt
         const variables: Record<string, string> = {}
         if (userContext?.name) variables.first_name = userContext.name
         if (userContext?.current_country) variables.current_country = userContext.current_country
@@ -160,20 +159,26 @@ function VoiceControls({
 
         console.log('🎙️ Connecting to Hume with variables:', variables)
 
-        // Pass variables at connection time so greeting uses them
-        await (connect as any)({
+        // Pass auth, configId, and sessionSettings to connect()
+        const connectOptions: any = {
           auth: { type: 'accessToken', value: accessToken },
-          configId: configId,
-          sessionSettings: Object.keys(variables).length > 0 ? {
-            customSessionId: userId || undefined,
+          configId,
+        }
+
+        if (Object.keys(variables).length > 0) {
+          connectOptions.sessionSettings = {
+            type: 'session_settings',
             variables,
-          } : undefined,
-        })
+            customSessionId: userId || undefined,
+          }
+        }
+
+        await connect(connectOptions)
       } catch (err) {
         console.error('Failed to connect:', err)
       }
     }
-  }, [isConnected, isConnecting, readyState, connect, disconnect, accessToken, configId, userId, userContext, saveTranscripts])
+  }, [isConnected, isConnecting, connect, disconnect, accessToken, configId, userId, userContext, saveTranscripts])
 
   // Get last few messages for display
   const recentMessages = messages.slice(-3)
