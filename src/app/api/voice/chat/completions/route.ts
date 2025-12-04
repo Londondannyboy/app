@@ -48,10 +48,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: ChatCompletionRequest = await request.json()
-    const { messages, user: userId } = body
+    const { messages, user: bodyUserId } = body
+
+    // Hume sends custom_session_id as a query parameter, not in body
+    const url = new URL(request.url)
+    const customSessionId = url.searchParams.get('custom_session_id')
+    const userId = customSessionId || bodyUserId || null
 
     console.log('Request:', {
       userId,
+      customSessionId,
+      bodyUserId,
       messageCount: messages.length
     })
 
