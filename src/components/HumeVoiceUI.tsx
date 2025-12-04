@@ -169,11 +169,11 @@ function VoiceControls({
       await saveTranscripts()
       savedMessagesRef.current.clear()
       await disconnect()
-    } else {
+    } else if (!isConnecting) {
+      // Only connect if not already connecting
       try {
-        console.log('🎙️ Connecting to Hume...', { configId, userId })
+        console.log('🎙️ Connecting to Hume...', { configId, userId, readyState })
 
-        // Simple connection first - no session settings
         await connect({
           auth: { type: 'accessToken', value: accessToken },
           configId: configId,
@@ -182,7 +182,7 @@ function VoiceControls({
         console.error('Failed to connect:', err)
       }
     }
-  }, [isConnected, connect, disconnect, accessToken, configId, saveTranscripts])
+  }, [isConnected, isConnecting, readyState, connect, disconnect, accessToken, configId, userId, saveTranscripts])
 
   // Get last few messages for display
   const recentMessages = messages.slice(-3)
