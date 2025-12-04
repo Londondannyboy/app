@@ -100,31 +100,7 @@ function VoiceControls({
     onConnectionChange?.(isConnected)
   }, [isConnected, onConnectionChange])
 
-  // Send session variables after connection is established
-  useEffect(() => {
-    if (isConnected && userContext && !hasSetVariables.current) {
-      hasSetVariables.current = true
-
-      const variables: Record<string, string> = {
-        first_name: userContext.name || 'friend',
-        current_country: userContext.current_country || 'unknown',
-        destination_countries: userContext.destination_countries?.join(', ') || 'not specified',
-        nationality: userContext.nationality || 'not specified',
-        timeline: userContext.timeline || 'not specified',
-      }
-
-      console.log('📤 Sending session variables:', variables)
-
-      sendSessionSettings({
-        variables,
-      })
-    }
-
-    // Reset flag when disconnected
-    if (!isConnected) {
-      hasSetVariables.current = false
-    }
-  }, [isConnected, userContext, sendSessionSettings])
+  // Variables are now passed at connect time, no need for post-connection update
 
   // Save transcripts to database
   const saveTranscripts = useCallback(async () => {
@@ -172,17 +148,32 @@ function VoiceControls({
     } else if (!isConnecting) {
       // Only connect if not already connecting
       try {
-        console.log('🎙️ Connecting to Hume...', { configId, userId, readyState })
+        // Build variables for system prompt - must be passed at connect time
+        const variables: Record<string, string> = {}
+        if (userContext?.name) variables.first_name = userContext.name
+        if (userContext?.current_country) variables.current_country = userContext.current_country
+        if (userContext?.destination_countries?.length) {
+          variables.destination_countries = userContext.destination_countries.join(', ')
+        }
+        if (userContext?.nationality) variables.nationality = userContext.nationality
+        if (userContext?.timeline) variables.timeline = userContext.timeline
 
-        await connect({
+        console.log('🎙️ Connecting to Hume with variables:', variables)
+
+        // Pass variables at connection time so greeting uses them
+        await (connect as any)({
           auth: { type: 'accessToken', value: accessToken },
           configId: configId,
+          sessionSettings: Object.keys(variables).length > 0 ? {
+            customSessionId: userId || undefined,
+            variables,
+          } : undefined,
         })
       } catch (err) {
         console.error('Failed to connect:', err)
       }
     }
-  }, [isConnected, isConnecting, readyState, connect, disconnect, accessToken, configId, userId, saveTranscripts])
+  }, [isConnected, isConnecting, readyState, connect, disconnect, accessToken, configId, userId, userContext, saveTranscripts])
 
   // Get last few messages for display
   const recentMessages = messages.slice(-3)
