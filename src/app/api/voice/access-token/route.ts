@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getUser } from '@/lib/api-clients/neon'
 
 /**
  * POST /api/voice/access-token
  *
  * Generates a Hume AI access token for voice conversations.
- * This endpoint is called by the VoiceWidget before starting a conversation.
+ * Also returns user profile data to inject as session context.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -46,14 +47,35 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
+    // Fetch user profile data to inject as context
+    let userContext = null
+    if (user_id) {
+      try {
+        const user = await getUser(user_id)
+        if (user) {
+          userContext = {
+            name: user.first_name || undefined,
+            current_country: user.current_country || undefined,
+            destination_countries: user.destination_countries || [],
+            nationality: user.nationality || undefined,
+            timeline: user.timeline || undefined,
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch user for context:', err)
+      }
+    }
+
     console.log('✅ Generated Hume access token', {
       user_id,
       expires_in: data.expires_in,
+      hasUserContext: !!userContext,
     })
 
     return NextResponse.json({
       accessToken: data.access_token,
       expiresIn: data.expires_in,
+      userContext,
     })
 
   } catch (error) {

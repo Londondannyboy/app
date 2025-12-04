@@ -73,8 +73,17 @@ const HumeVoiceUI = dynamic(
   }
 )
 
+interface UserContext {
+  name?: string
+  current_country?: string
+  destination_countries?: string[]
+  nationality?: string
+  timeline?: string
+}
+
 export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [userContext, setUserContext] = useState<UserContext | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [loadTimeout, setLoadTimeout] = useState(false)
@@ -109,6 +118,9 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
 
         const data = await response.json()
         setAccessToken(data.accessToken)
+        if (data.userContext) {
+          setUserContext(data.userContext)
+        }
       } catch (err) {
         console.error('Failed to fetch access token:', err)
         setError('Failed to connect to voice service')
@@ -184,6 +196,7 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
         accessToken={accessToken}
         configId={HUME_CONFIG_ID}
         userId={userId}
+        userContext={userContext}
         onConnectionChange={onConnectionChange}
       />
     </VoiceErrorBoundary>

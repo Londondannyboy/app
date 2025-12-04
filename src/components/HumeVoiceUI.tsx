@@ -3,10 +3,19 @@
 import { useEffect, useCallback } from 'react'
 import { useVoice, VoiceProvider } from '@humeai/voice-react'
 
+interface UserContext {
+  name?: string
+  current_country?: string
+  destination_countries?: string[]
+  nationality?: string
+  timeline?: string
+}
+
 interface HumeVoiceUIProps {
   accessToken: string
   configId: string
   userId: string | null
+  userContext?: UserContext | null
   onConnectionChange?: (isConnected: boolean) => void
 }
 
@@ -14,6 +23,7 @@ function VoiceControls({
   accessToken,
   configId,
   userId,
+  userContext,
   onConnectionChange,
 }: HumeVoiceUIProps) {
   const { connect, disconnect, status, isMuted, mute, unmute, messages } = useVoice()
@@ -30,18 +40,32 @@ function VoiceControls({
       await disconnect()
     } else {
       try {
+        // Build session settings with user context for personalization
+        const sessionSettings: Record<string, any> = {
+          customSessionId: userId || undefined,
+        }
+
+        // Inject user context as variables for system prompt personalization
+        if (userContext) {
+          sessionSettings.variables = {
+            user_name: userContext.name || 'friend',
+            current_country: userContext.current_country || 'unknown',
+            destinations: userContext.destination_countries?.join(', ') || 'not specified',
+            nationality: userContext.nationality || 'not specified',
+            timeline: userContext.timeline || 'not specified',
+          }
+        }
+
         await connect({
           auth: { type: 'accessToken', value: accessToken },
           configId: configId,
-          sessionSettings: {
-            customSessionId: userId || undefined,
-          },
+          sessionSettings,
         } as Parameters<typeof connect>[0])
       } catch (err) {
         console.error('Failed to connect:', err)
       }
     }
-  }, [isConnected, connect, disconnect, accessToken, configId, userId])
+  }, [isConnected, connect, disconnect, accessToken, configId, userId, userContext])
 
   // Get last few messages for display
   const recentMessages = messages.slice(-3)
