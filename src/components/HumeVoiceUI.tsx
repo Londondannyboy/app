@@ -144,37 +144,18 @@ function VoiceControls({
       await disconnect()
     } else {
       try {
-        // Build session settings with user context for personalization
-        // IMPORTANT: type: "session_settings" is required by Hume
-        const sessionSettings: Record<string, any> = {
-          type: 'session_settings',
-          customSessionId: userId || undefined,
-        }
+        console.log('🎙️ Connecting to Hume...', { configId, userId })
 
-        // Inject user context as variables for system prompt personalization
-        // Variable names MUST match exactly what's in the Hume system prompt
-        if (userContext) {
-          sessionSettings.variables = {
-            first_name: userContext.name || 'friend',
-            current_country: userContext.current_country || 'unknown',
-            destination_countries: userContext.destination_countries?.join(', ') || 'not specified',
-            nationality: userContext.nationality || 'not specified',
-            timeline: userContext.timeline || 'not specified',
-          }
-        }
-
-        console.log('🎙️ Connecting with session settings:', JSON.stringify(sessionSettings, null, 2))
-
+        // Simple connection first - no session settings
         await connect({
           auth: { type: 'accessToken', value: accessToken },
           configId: configId,
-          sessionSettings,
-        } as Parameters<typeof connect>[0])
+        })
       } catch (err) {
         console.error('Failed to connect:', err)
       }
     }
-  }, [isConnected, connect, disconnect, accessToken, configId, userId, userContext, saveTranscripts])
+  }, [isConnected, connect, disconnect, accessToken, configId, saveTranscripts])
 
   // Get last few messages for display
   const recentMessages = messages.slice(-3)
@@ -269,16 +250,16 @@ function VoiceControls({
 }
 
 export default function HumeVoiceUI(props: HumeVoiceUIProps) {
-  // Create tool handler with userId in closure
-  const onToolCall = useCallback(
-    async (toolCall: any, send: any) => {
-      return handleToolCall(toolCall, send, props.userId)
-    },
-    [props.userId]
-  )
+  // Tool handler temporarily disabled to debug connection issue
+  // const onToolCall = useCallback(
+  //   async (toolCall: any, send: any) => {
+  //     return handleToolCall(toolCall, send, props.userId)
+  //   },
+  //   [props.userId]
+  // )
 
   return (
-    <VoiceProvider onToolCall={onToolCall}>
+    <VoiceProvider>
       <VoiceControls {...props} />
     </VoiceProvider>
   )
