@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useCallback, useRef } from 'react'
-import { useVoice, VoiceProvider } from '@humeai/voice-react'
+import { useVoice, VoiceProvider, VoiceReadyState } from '@humeai/voice-react'
 import { getApiUrl } from '@/lib/api'
 
 interface UserContext {
@@ -89,12 +89,12 @@ function VoiceControls({
   userContext,
   onConnectionChange,
 }: HumeVoiceUIProps) {
-  const { connect, disconnect, status, isMuted, mute, unmute, messages, sendSessionSettings } = useVoice()
+  const { connect, disconnect, readyState, isMuted, mute, unmute, messages, sendSessionSettings } = useVoice()
   const savedMessagesRef = useRef<Set<string>>(new Set())
   const hasSetVariables = useRef(false)
 
-  const isConnected = status.value === 'connected'
-  const isConnecting = status.value === 'connecting'
+  const isConnected = readyState === VoiceReadyState.OPEN
+  const isConnecting = readyState === VoiceReadyState.CONNECTING
 
   useEffect(() => {
     onConnectionChange?.(isConnected)
@@ -206,10 +206,10 @@ function VoiceControls({
 
       {/* Status text */}
       <p className="text-gray-400 text-sm h-5">
-        {status.value === 'connecting' && 'Connecting...'}
-        {status.value === 'connected' && (isMuted ? 'Muted' : 'Listening...')}
-        {status.value === 'disconnected' && 'Click to start'}
-        {status.value === 'error' && 'Connection error'}
+        {isConnecting && 'Connecting...'}
+        {isConnected && (isMuted ? 'Muted' : 'Listening...')}
+        {readyState === VoiceReadyState.IDLE && 'Click to start'}
+        {readyState === VoiceReadyState.CLOSED && 'Disconnected'}
       </p>
 
       {/* Controls */}
