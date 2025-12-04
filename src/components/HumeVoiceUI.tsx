@@ -145,7 +145,9 @@ function VoiceControls({
     } else {
       try {
         // Build session settings with user context for personalization
+        // IMPORTANT: type: "session_settings" is required by Hume
         const sessionSettings: Record<string, any> = {
+          type: 'session_settings',
           customSessionId: userId || undefined,
         }
 
@@ -160,6 +162,8 @@ function VoiceControls({
             timeline: userContext.timeline || 'not specified',
           }
         }
+
+        console.log('🎙️ Connecting with session settings:', JSON.stringify(sessionSettings, null, 2))
 
         await connect({
           auth: { type: 'accessToken', value: accessToken },
