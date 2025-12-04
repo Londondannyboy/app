@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useVoice, VoiceProvider } from '@humeai/voice-react'
+import { getApiUrl } from '@/lib/api'
 
 interface UserContext {
   name?: string
@@ -27,6 +28,7 @@ function VoiceControls({
   onConnectionChange,
 }: HumeVoiceUIProps) {
   const { connect, disconnect, status, isMuted, mute, unmute, messages } = useVoice()
+  const savedMessagesRef = useRef<Set<string>>(new Set())
 
   const isConnected = status.value === 'connected'
   const isConnecting = status.value === 'connecting'
@@ -35,8 +37,48 @@ function VoiceControls({
     onConnectionChange?.(isConnected)
   }, [isConnected, onConnectionChange])
 
+  // Save transcripts to database
+  const saveTranscripts = useCallback(async () => {
+    if (!userId || messages.length === 0) return
+
+    const messagesToSave = messages.filter(msg => {
+      if (msg.type !== 'user_message' && msg.type !== 'assistant_message') return false
+      const content = (msg as any).message?.content
+      if (!content) return false
+      // Don't save if already saved
+      const msgId = `${msg.type}-${content.substring(0, 50)}`
+      if (savedMessagesRef.current.has(msgId)) return false
+      savedMessagesRef.current.add(msgId)
+      return true
+    })
+
+    if (messagesToSave.length === 0) return
+
+    try {
+      await fetch(getApiUrl('/user/transcripts/save'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          messages: messagesToSave.map(msg => ({
+            role: msg.type === 'user_message' ? 'user' : 'assistant',
+            content: (msg as any).message?.content || '',
+            timestamp: new Date().toISOString(),
+            source: 'voice'
+          }))
+        })
+      })
+      console.log(`💾 Saved ${messagesToSave.length} transcript messages`)
+    } catch (err) {
+      console.error('Failed to save transcripts:', err)
+    }
+  }, [userId, messages])
+
   const toggleConnection = useCallback(async () => {
     if (isConnected) {
+      // Save transcripts before disconnecting
+      await saveTranscripts()
+      savedMessagesRef.current.clear()
       await disconnect()
     } else {
       try {
@@ -65,7 +107,7 @@ function VoiceControls({
         console.error('Failed to connect:', err)
       }
     }
-  }, [isConnected, connect, disconnect, accessToken, configId, userId, userContext])
+  }, [isConnected, connect, disconnect, accessToken, configId, userId, userContext, saveTranscripts])
 
   // Get last few messages for display
   const recentMessages = messages.slice(-3)
