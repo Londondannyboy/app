@@ -2,75 +2,49 @@
 
 import { useUser } from '@stackframe/stack'
 import { VoiceWidget } from '@/components/VoiceWidget'
-import { RepoSection } from '@/components/dashboard/RepoSection'
-import { ArticlesSection } from '@/components/dashboard/ArticlesSection'
-import { TranscriptSection } from '@/components/dashboard/TranscriptSection'
-import { DebugPanel } from '@/components/DebugPanel'
-import { HITLConfirmations } from '@/components/HITLConfirmations'
 import { GlobalHeader } from '@/components/GlobalHeader'
-import { GlobalFooter } from '@/components/GlobalFooter'
 
 export default function VoicePage() {
   const user = useUser()
   const userId = user?.id || null
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex flex-col">
       <GlobalHeader />
-      <HITLConfirmations userId={userId} />
 
-      <main className="flex flex-1">
-        {/* Main voice interface */}
-        <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div className="max-w-2xl w-full">
-            <h1 className="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Relocation Assistant
-            </h1>
-            <p className="text-gray-400 mb-8 text-center">
-              Talk to your AI assistant about relocating
+      <main className="flex-1 flex items-center justify-center p-8">
+        <div className="max-w-2xl w-full text-center">
+          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Voice Assistant
+          </h1>
+          <p className="text-gray-400 mb-8">
+            Talk to Quest about your relocation plans
+          </p>
+
+          {user && (
+            <p className="text-gray-500 text-sm mb-4">
+              Signed in as {user.displayName || user.primaryEmail}
             </p>
-
-            {user && (
-              <p className="text-gray-500 text-sm mb-4 text-center">
-                Welcome, {user.displayName || user.primaryEmail}
-              </p>
-            )}
-
-            <VoiceWidget userId={userId} />
-
-            {/* Transcripts below voice widget */}
-            {user && (
-              <div className="mt-8">
-                <TranscriptSection userId={userId} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar with facts and articles */}
-        <aside className="w-96 bg-black/30 border-l border-white/10 p-4 overflow-y-auto max-h-screen">
-          {user ? (
-            <div className="space-y-6">
-              <RepoSection userId={userId} />
-              <div className="border-t border-white/10" />
-              <ArticlesSection userId={userId} />
-            </div>
-          ) : (
-            <div className="text-center text-gray-500 py-8">
-              <p className="mb-4">Sign in to see your personalized content</p>
-              <a
-                href="/handler/sign-in"
-                className="inline-block px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
-              >
-                Sign In
-              </a>
-            </div>
           )}
-        </aside>
+
+          <div className="bg-black/30 border border-white/10 rounded-2xl p-8">
+            <VoiceWidget userId={userId} />
+          </div>
+
+          {!user && (
+            <p className="mt-6 text-gray-500 text-sm">
+              <a href="/handler/sign-in" className="text-purple-400 hover:text-purple-300">
+                Sign in
+              </a>
+              {' '}for a personalized experience
+            </p>
+          )}
+        </div>
       </main>
 
-      <DebugPanel userId={userId} show={true} />
-      <GlobalFooter />
+      <footer className="border-t border-white/10 bg-black/20 py-4 text-center text-gray-500 text-sm">
+        © {new Date().getFullYear()} Relocation Quest
+      </footer>
     </div>
   )
 }

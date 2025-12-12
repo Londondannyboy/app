@@ -107,7 +107,7 @@ export function ArticlesSection({ userId }: ArticlesSectionProps) {
                     )}
                     <div className="flex items-center gap-2 mt-2">
                       <span className={`text-xs px-2 py-0.5 rounded bg-${style.color}-500/20 text-${style.color}-400`}>
-                        {article.type.replace('_', ' ')}
+                        {(article.type || '').replace('_', ' ')}
                       </span>
                       {article.country_code && (
                         <span className="text-xs text-gray-500">

@@ -1,112 +1,42 @@
 'use client'
 
-import { useState, useEffect, useCallback, Component, ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { getApiUrl } from '@/lib/api'
 
-const HUME_CONFIG_ID = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || ''
+// Lazy load HumeVoiceUI to avoid SSR issues
+const HumeVoiceUI = dynamic(() => import('./HumeVoiceUI'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-col items-center gap-4 p-8">
+      <div className="w-40 h-40 rounded-full bg-gray-700 animate-pulse" />
+      <p className="text-gray-500">Loading voice interface...</p>
+    </div>
+  ),
+})
 
-interface VoiceWidgetProps {
-  userId: string | null
-  onConnectionChange?: (isConnected: boolean) => void
-}
-
-// Error boundary to catch Hume SDK errors
-class VoiceErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: ReactNode; fallback: ReactNode }) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('VoiceWidget error:', error, errorInfo)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-5 bg-red-500/20 rounded-xl text-red-300 text-center">
-          <p className="font-medium mb-2">Voice interface error</p>
-          <p className="text-sm text-red-400">{this.state.error?.message || 'Unknown error'}</p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            className="mt-3 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-sm transition"
-          >
-            Try Again
-          </button>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
-
-// Lazy load the Hume components to avoid SSR issues
-const HumeVoiceUI = dynamic(
-  () => import('./HumeVoiceUI').catch((err) => {
-    console.error('Failed to load HumeVoiceUI:', err)
-    // Return a fallback component on error
-    return {
-      default: () => (
-        <div className="p-5 bg-red-500/20 rounded-xl text-red-300 text-center">
-          <p className="font-medium mb-2">Failed to load voice interface</p>
-          <p className="text-sm text-red-400">Please refresh the page</p>
-        </div>
-      ),
-    }
-  }),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="p-5 text-center text-gray-500">
-        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-        Loading voice interface...
-      </div>
-    ),
-  }
-)
-
-interface UserContext {
-  name?: string
+interface HumeVariables {
+  first_name?: string
   current_country?: string
-  destination_countries?: string[]
-  nationality?: string
+  destination_countries?: string
+  budget?: string
   timeline?: string
 }
 
-export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
+interface VoiceWidgetProps {
+  userId: string | null
+}
+
+export function VoiceWidget({ userId }: VoiceWidgetProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
-  const [userContext, setUserContext] = useState<UserContext | null>(null)
+  const [configId, setConfigId] = useState<string | null>(null)
+  const [variables, setVariables] = useState<HumeVariables>({})
   const [error, setError] = useState<string | null>(null)
-  const [isClient, setIsClient] = useState(false)
-  const [loadTimeout, setLoadTimeout] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  // Ensure client-side only
   useEffect(() => {
-    setIsClient(true)
-
-    // Set a timeout to show a warning if loading takes too long
-    const timer = setTimeout(() => {
-      setLoadTimeout(true)
-    }, 10000) // 10 seconds
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Fetch access token on mount
-  useEffect(() => {
-    if (!isClient) return
-
-    const fetchToken = async () => {
+    async function fetchToken() {
       try {
-        const response = await fetch(getApiUrl('/voice/access-token'), {
+        const response = await fetch('/api/voice/access-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId }),
@@ -117,46 +47,52 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
         }
 
         const data = await response.json()
-        setAccessToken(data.accessToken)
-        if (data.userContext) {
-          setUserContext(data.userContext)
+
+        if (data.error) {
+          throw new Error(data.error)
         }
+
+        setAccessToken(data.accessToken)
+        setConfigId(data.configId || process.env.NEXT_PUBLIC_HUME_CONFIG_ID || '')
+        setVariables(data.variables || {})
+
+        console.log('🎙️ Token fetched:', {
+          hasToken: !!data.accessToken,
+          configId: data.configId,
+          variables: data.variables,
+        })
       } catch (err) {
-        console.error('Failed to fetch access token:', err)
-        setError('Failed to connect to voice service')
+        console.error('Failed to fetch token:', err)
+        setError(err instanceof Error ? err.message : 'Failed to initialize voice')
+      } finally {
+        setLoading(false)
       }
     }
 
     fetchToken()
-  }, [isClient, userId])
+  }, [userId])
 
-  if (!isClient) {
+  if (loading) {
     return (
-      <div className="p-5 text-center text-gray-500">
-        Loading...
-      </div>
-    )
-  }
-
-  if (!HUME_CONFIG_ID) {
-    return (
-      <div className="text-yellow-400 p-4 border border-yellow-400/20 rounded-lg text-center">
-        <p className="font-medium">Voice not configured</p>
-        <p className="text-sm text-yellow-500 mt-1">Missing HUME_CONFIG_ID</p>
+      <div className="flex flex-col items-center gap-4 p-8">
+        <div className="w-40 h-40 rounded-full bg-gray-700 animate-pulse" />
+        <p className="text-gray-500">Initializing...</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="p-5 bg-red-500/20 rounded-xl text-red-300 text-center">
-        <p>{error}</p>
+      <div className="p-6 bg-red-500/20 rounded-xl text-center">
+        <p className="text-red-300 font-medium mb-2">Voice Error</p>
+        <p className="text-red-400 text-sm mb-4">{error}</p>
         <button
           onClick={() => {
             setError(null)
+            setLoading(true)
             setAccessToken(null)
           }}
-          className="mt-3 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-sm transition"
+          className="px-4 py-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-sm transition"
         >
           Retry
         </button>
@@ -164,41 +100,21 @@ export function VoiceWidget({ userId, onConnectionChange }: VoiceWidgetProps) {
     )
   }
 
-  if (!accessToken) {
+  if (!accessToken || !configId) {
     return (
-      <div className="p-5 text-center text-gray-500">
-        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-        Initializing voice interface...
-        {loadTimeout && (
-          <p className="text-xs text-yellow-400 mt-2">
-            Taking longer than expected...
-            <button
-              onClick={() => window.location.reload()}
-              className="ml-2 underline hover:text-yellow-300"
-            >
-              Refresh
-            </button>
-          </p>
-        )}
+      <div className="p-6 bg-yellow-500/20 rounded-xl text-center">
+        <p className="text-yellow-300 font-medium">Voice not configured</p>
+        <p className="text-yellow-400/70 text-sm mt-1">Missing credentials</p>
       </div>
     )
   }
 
   return (
-    <VoiceErrorBoundary
-      fallback={
-        <div className="p-5 bg-red-500/20 rounded-xl text-red-300">
-          Voice interface failed to load
-        </div>
-      }
-    >
-      <HumeVoiceUI
-        accessToken={accessToken}
-        configId={HUME_CONFIG_ID}
-        userId={userId}
-        userContext={userContext}
-        onConnectionChange={onConnectionChange}
-      />
-    </VoiceErrorBoundary>
+    <HumeVoiceUI
+      accessToken={accessToken}
+      configId={configId}
+      userId={userId}
+      variables={variables}
+    />
   )
 }

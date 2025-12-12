@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.44",
     "@ai-sdk/openai": "^2.0.76",
     "@ai-sdk/react": "^2.0.106",
     "@anthropic-ai/sdk": "^0.71.0",

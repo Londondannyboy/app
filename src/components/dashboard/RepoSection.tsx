@@ -280,7 +280,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
                   }`}
                 >
                   <span className="text-purple-400 capitalize">
-                    {change.fact_type.replace(/_/g, ' ')}
+                    {(change.fact_type || '').replace(/_/g, ' ')}
                   </span>
                   {change.old_value && (
                     <>
@@ -318,7 +318,7 @@ export function RepoSection({ userId }: RepoSectionProps) {
                       className="p-2 bg-white/5 rounded-lg border border-white/10 hover:border-purple-500/50 transition group"
                     >
                       <div className="text-xs text-gray-400 capitalize mb-0.5">
-                        {fact.fact_type.replace(/_/g, ' ')}
+                        {(fact.fact_type || '').replace(/_/g, ' ')}
                       </div>
 
                       {editingFact === String(fact.id) ? (

@@ -5,7 +5,8 @@ import { getUser } from '@/lib/api-clients/neon'
  * POST /api/voice/access-token
  *
  * Generates a Hume AI access token for voice conversations.
- * Also returns user profile data to inject as session context.
+ * Uses Basic auth with API key as username and Secret key as password.
+ * Also returns user profile data to inject as session variables.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -23,16 +24,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Call Hume API to get access token
+    // Use Basic auth with API key as username and Secret key as password
+    const credentials = Buffer.from(`${apiKey}:${secretKey}`).toString('base64')
+
     const response = await fetch('https://api.hume.ai/oauth2-cc/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: apiKey,
-        client_secret: secretKey,
       }),
     })
 
@@ -47,18 +49,20 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
-    // Fetch user profile data to inject as context
-    let userContext = null
+    // Fetch user profile data to build Hume variables
+    let variables: Record<string, string> = {}
     if (user_id) {
       try {
         const user = await getUser(user_id)
         if (user) {
-          userContext = {
-            name: user.first_name || undefined,
-            current_country: user.current_country || undefined,
-            destination_countries: user.destination_countries || [],
-            nationality: user.nationality || undefined,
-            timeline: user.timeline || undefined,
+          // Build variables matching Hume prompt placeholders
+          // Hume requires ALL variables to have values - provide fallbacks
+          variables = {
+            first_name: user.first_name || 'there',
+            current_country: user.current_country || 'your current location',
+            destination_countries: user.destination_countries?.join(', ') || 'various destinations',
+            budget: user.budget_monthly ? `${user.budget_monthly} per month` : 'not yet specified',
+            timeline: user.timeline || 'flexible',
           }
         }
       } catch (err) {
@@ -69,13 +73,14 @@ export async function POST(request: NextRequest) {
     console.log('✅ Generated Hume access token', {
       user_id,
       expires_in: data.expires_in,
-      hasUserContext: !!userContext,
+      hasVariables: Object.keys(variables).length > 0,
     })
 
     return NextResponse.json({
       accessToken: data.access_token,
-      expiresIn: data.expires_in,
-      userContext,
+      configId: process.env.NEXT_PUBLIC_HUME_CONFIG_ID,
+      userId: user_id,
+      variables,
     })
 
   } catch (error) {
